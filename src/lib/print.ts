@@ -1,4 +1,4 @@
-import { APPOINTMENT_STATUS_LABELS } from "../constants";
+﻿import { APPOINTMENT_STATUS_LABELS } from "../constants";
 import { toReadableDateLong, toReadableTime } from "./date";
 import { fullName } from "./format";
 import type { CitaDetalle, ExpedientePodologiaDetalle, RecetaDetalle, VentaDetalle } from "../types/domain";
@@ -68,7 +68,7 @@ export function printPrescriptionLegacy(prescription: RecetaDetalle) {
             <p class="schedule">${[item.dosis, item.frecuencia, item.duracion, item.via]
               .filter(Boolean)
               .map((value) => escapeHtml(value))
-              .join(" · ")}</p>
+              .join(" - ")}</p>
             ${item.indicaciones ? `<p>${escapeHtml(item.indicaciones)}</p>` : ""}
           </div>
         </section>`
@@ -169,16 +169,64 @@ function openPrintWindow(html: string, width = 900, height = 850) {
 }
 
 export function printPodologyRecord(record: ExpedientePodologiaDetalle) {
-  const list = (values: string[]) => values.length ? values.map((value) => escapeHtml(value.replace(/_/g, " "))).join(", ") : "Sin registrar";
-  const yesNo = (value: boolean | null) => value ? "Presente" : "No registrado";
+  const has = (values: string[], value: string) => values.includes(value);
+  const mark = (active: boolean) => active ? "X" : "";
+  const pair = (x: number, y: number, active: boolean, gap = 3.14) =>
+    `<b class="mark" style="left:${x}%;top:${y}%">${mark(active)}</b><b class="mark" style="left:${x + gap}%;top:${y}%">${mark(!active)}</b>`;
+  const option = (x: number, y: number, active: boolean) =>
+    `<b class="mark" style="left:${x}%;top:${y}%">${mark(active)}</b>`;
+  const rows = (values: string[], keys: string[], ys: number[], x: number, gap = 3.14) =>
+    keys.map((key, index) => pair(x, ys[index], has(values, key), gap)).join("");
+  const verticalPair = (x: number, yesY: number, active: boolean) =>
+    `<b class="mark tiny" style="left:${x}%;top:${active ? yesY : yesY + 1.04}%">X</b>`;
+  const birthDate = record.paciente?.fecha_nacimiento
+    ? new Date(`${record.paciente.fecha_nacimiento}T12:00:00`)
+    : null;
+  let age = "";
+  if (birthDate && !Number.isNaN(birthDate.getTime())) {
+    const now = new Date();
+    let years = now.getFullYear() - birthDate.getFullYear();
+    if (now.getMonth() < birthDate.getMonth() || (now.getMonth() === birthDate.getMonth() && now.getDate() < birthDate.getDate())) years -= 1;
+    age = String(Math.max(0, years));
+  }
+  const templateUrl = new URL("/podology-expediente-template.png", window.location.origin).href;
+  const shortDate = record.fecha.split("-").reverse().join("/");
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>Expediente podologico</title><style>
-    @page { size: A4; margin: 12mm; } *{box-sizing:border-box} body{margin:0;font:10pt Arial,sans-serif;color:#315470} .sheet{padding:10px} header{display:flex;align-items:center;gap:18px;border-bottom:5px solid #5E92DB;padding-bottom:12px} header img{width:72px} h1{margin:0;font-size:24pt;color:#315470} h2{margin:18px 0 8px;padding:7px 10px;background:#5E92DB;color:#fff;font-size:11pt;text-transform:uppercase}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px}.full{grid-column:1/-1}.field{padding:7px 9px;border-bottom:1px solid #cfe4ee}.field strong{display:block;font-size:8pt;text-transform:uppercase;color:#60798c;margin-bottom:3px}.clinical{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.box{border:1px solid #cfe4ee;border-radius:6px;padding:10px;min-height:70px}.box strong{display:block;margin-bottom:6px}.signature{margin:40px 0 0 auto;width:240px;border-top:1px solid #315470;text-align:center;padding-top:6px}.footer{margin-top:22px;padding-top:8px;border-top:1px solid #99D6E9;text-align:center;font-size:8pt}
-  </style></head><body><main class="sheet"><header><img src="/favicon.png" alt=""/><div><h1>Expediente podologico</h1><div>Body Feet - Centro de Podologia y Rehabilitacion</div></div></header>
-  <h2>Datos generales</h2><div class="grid"><div class="field"><strong>Paciente</strong>${escapeHtml(fullName(record.paciente))}</div><div class="field"><strong>Fecha</strong>${escapeHtml(toReadableDateLong(record.fecha))}</div><div class="field"><strong>DNI</strong>${escapeHtml(record.paciente?.dni ?? "Sin registrar")}</div><div class="field"><strong>Telefono</strong>${escapeHtml(record.paciente?.telefono)}</div><div class="field"><strong>Sede</strong>${escapeHtml(record.sede?.nombre)}</div><div class="field"><strong>Profesional</strong>${escapeHtml(fullName(record.profesional))}</div><div class="field full"><strong>Motivo de consulta</strong>${escapeHtml(record.motivo_consulta)}</div></div>
-  <h2>Evaluacion principal</h2><div class="clinical"><div class="box"><strong>Pulsos</strong>Pedio I: ${yesNo(record.pulso_pedio_izquierdo)}<br/>Pedio D: ${yesNo(record.pulso_pedio_derecho)}<br/>Tibial I: ${yesNo(record.pulso_tibial_izquierdo)}<br/>Tibial D: ${yesNo(record.pulso_tibial_derecho)}</div><div class="box"><strong>Piel</strong>Temperatura: ${escapeHtml(record.temperatura ?? "Sin registrar")}<br/>Tipo: ${escapeHtml(record.tipo_piel ?? "Sin registrar")}</div><div class="box"><strong>Tipo de pie</strong>${escapeHtml(record.tipo_pie ?? "Sin registrar")}</div></div>
-  <h2>Antecedentes y tratamiento</h2><div class="grid"><div class="field"><strong>Enfermedades</strong>${list(record.enfermedades)}${record.otra_enfermedad ? `, ${escapeHtml(record.otra_enfermedad)}` : ""}</div><div class="field"><strong>Tratamientos</strong>${list(record.tratamientos)}${record.otro_tratamiento ? `, ${escapeHtml(record.otro_tratamiento)}` : ""}</div><div class="field"><strong>Forma de unas</strong>${list(record.formas_unas)}</div><div class="field"><strong>Problemas de piel</strong>${list(record.problemas_piel)}</div><div class="field"><strong>Alteraciones ungueales</strong>${escapeHtml(record.alteraciones_unas ?? "Sin registrar")}</div><div class="field"><strong>Alergias</strong>${escapeHtml(record.alergias ?? "Sin registrar")}</div><div class="field full"><strong>Mapa anatomico y hallazgos</strong>${escapeHtml(record.mapa_anatomico_notas ?? "Sin registrar")}</div><div class="field full"><strong>Observaciones</strong>${escapeHtml(record.observaciones ?? "Sin registrar")}</div></div>
-  <div class="signature">${escapeHtml(fullName(record.profesional))}<br/>Profesional tratante</div><div class="footer">${escapeHtml(record.sede?.direccion ?? "Body Feet")} - ${escapeHtml(record.sede?.telefono ?? "")}</div></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
-  openPrintWindow(html);
+    @page{size:Letter portrait;margin:0}*{box-sizing:border-box}html,body{margin:0;width:8.5in;height:11in;background:#fff}body{font-family:Arial,sans-serif;color:#151515}.sheet{position:relative;width:8.5in;height:11in;overflow:hidden}.template{position:absolute;inset:0;width:100%;height:100%}.remove-social{position:absolute;left:48.3%;top:14.5%;width:34%;height:7.2%;background:#f1edeb}.value,.note,.mark{position:absolute;z-index:2}.value{font-size:9pt;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.note{font-size:7pt;line-height:1.25;overflow:hidden;overflow-wrap:anywhere;white-space:normal}.entry{padding:2px 4px}.mark{width:11px;height:11px;transform:translate(-50%,-50%);text-align:center;font:bold 9pt Arial;line-height:11px}.tiny{width:7px;height:7px;font-size:6pt;line-height:7px}
+  </style></head><body><main class="sheet"><img class="template" src="${escapeHtml(templateUrl)}" alt=""/><div class="remove-social"></div>
+    <span class="value" style="left:13%;top:10.75%;width:35%">${escapeHtml(fullName(record.paciente))}</span>
+    <span class="value" style="left:13%;top:13.55%;width:35%">${escapeHtml(record.paciente?.direccion)}</span>
+    <span class="value" style="left:13%;top:16.25%;width:10%">${escapeHtml(age)}</span>
+    <span class="value" style="left:13%;top:19.05%;width:20%">${escapeHtml(record.paciente?.dni)}</span>
+    <span class="value" style="left:61.7%;top:13.55%;width:20%">${escapeHtml(record.paciente?.telefono)}</span>
+    <span class="value" style="left:83.1%;top:12.95%;width:12%;text-align:center;font-size:8pt">${escapeHtml(shortDate)}</span>
+    <span class="value" style="left:83%;top:18.4%;width:13%">${escapeHtml(record.id.slice(0,8).toUpperCase())}</span>
+    <div class="note entry" style="left:3.3%;top:26.05%;width:93%;height:4.1%">${escapeHtml(record.motivo_consulta)}</div>
+    ${record.pulso_pedio_izquierdo !== null ? pair(5.75,37.7,record.pulso_pedio_izquierdo,3.5) : ""}
+    ${record.pulso_pedio_derecho !== null ? pair(12.65,37.7,record.pulso_pedio_derecho,3.5) : ""}
+    ${record.pulso_tibial_izquierdo !== null ? pair(5.75,43.75,record.pulso_tibial_izquierdo,3.5) : ""}
+    ${record.pulso_tibial_derecho !== null ? pair(12.65,43.75,record.pulso_tibial_derecho,3.5) : ""}
+    ${option(5.73,49.64,record.temperatura==="fria")}${option(10.24,49.64,record.temperatura==="normal")}${option(15.14,49.64,record.temperatura==="caliente")}
+    ${option(5.69,55.18,record.tipo_piel==="seca")}${option(10.2,55.18,record.tipo_piel==="grasa")}${option(15.22,55.18,record.tipo_piel==="mixta")}
+    ${rows(record.enfermedades,["diabetes","hta","artritis","artrosis","osteoporosis"],[40.15,43.18,46.03,48.94,51.91],36.27)}
+    ${rows(record.tratamientos,["asepsia","fomentacion","limpieza_surcos","onicotomia","despiculizacion","resecado","helotomia","desbastado","pulido","asepsia_final"],[39,40.58,42.06,43.48,45,46.52,48.09,49.61,51.12,52.61],88.31,3.26)}
+    ${rows(record.formas_unas,["curva","recta","plana","cuchara","cucharada"],[62.8,64.2,65.6,67,68.4],12.9,4.3)}
+    ${verticalPair(75.61,62.88,has(record.problemas_piel,"psoriasis"))}
+    ${verticalPair(84.99,62.88,has(record.problemas_piel,"manchas"))}
+    ${verticalPair(94.3,62.88,has(record.problemas_piel,"tina"))}
+    ${verticalPair(75.61,65.72,has(record.problemas_piel,"vitiligo"))}
+    ${verticalPair(84.99,65.72,has(record.problemas_piel,"verrugas"))}
+    ${verticalPair(94.3,65.72,has(record.problemas_piel,"ampollas"))}
+    ${verticalPair(75.61,68.61,has(record.problemas_piel,"cicatrices"))}
+    ${verticalPair(84.99,68.61,has(record.problemas_piel,"dermatitis"))}
+    <span class="note entry" style="left:32.9%;top:54.65%;width:27.6%;height:2.35%">${escapeHtml(record.otra_enfermedad)}</span>
+    <span class="note entry" style="left:67.2%;top:55.35%;width:24.8%;height:1.75%">${escapeHtml(record.otro_tratamiento)}</span>
+    <span class="note entry" style="left:30.2%;top:61.15%;width:33.7%;height:2.8%">${escapeHtml(record.alteraciones_unas)}</span>
+    <span class="note entry" style="left:30.2%;top:66.6%;width:33.7%;height:2.8%">${escapeHtml(record.alergias)}</span>
+    <b class="mark" style="left:74.75%;top:77.65%">${mark(record.tipo_pie==="romano")}</b><b class="mark" style="left:92.9%;top:77.65%">${mark(record.tipo_pie==="egipcio")}</b>
+    <b class="mark" style="left:74.63%;top:88.35%">${mark(record.tipo_pie==="griego")}</b><b class="mark" style="left:93.38%;top:88.35%">${mark(record.tipo_pie==="cuadrado")}</b>
+  </main><script>window.onload=()=>setTimeout(()=>window.print(),700)</script></body></html>`;
+  openPrintWindow(html, 950, 1000);
 }
 
 export function printSaleReceipt(sale: VentaDetalle) {
@@ -191,3 +239,13 @@ export function printSaleReceipt(sale: VentaDetalle) {
   <table><thead><tr><th>Cant.</th><th>Descripcion</th><th>P. unit.</th><th>Importe</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Subtotal</span><span>S/ ${Number(sale.subtotal).toFixed(2)}</span></div><div><span>Descuento</span><span>S/ ${Number(sale.descuento).toFixed(2)}</span></div>${Number(sale.igv) > 0 ? `<div><span>Recargo</span><span>S/ ${Number(sale.igv).toFixed(2)}</span></div>` : ""}<div class="total"><span>Total</span><span>S/ ${Number(sale.total).toFixed(2)}</span></div></div><div class="footer">Gracias por su preferencia - Body Feet</div></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
   openPrintWindow(html);
 }
+
+
+
+
+
+
+
+
+
+

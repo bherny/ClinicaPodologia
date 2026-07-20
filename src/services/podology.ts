@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import { supabase } from "../lib/supabase";
 import type { CitaDetalle, ExpedientePodologiaDetalle } from "../types/domain";
 
@@ -12,7 +12,7 @@ const optionalBoolean = z.preprocess(
 
 export const podologyRecordSchema = z.object({
   paciente_id: z.string().uuid("Selecciona un paciente"),
-  cita_id: z.string().uuid("Selecciona una cita podologica"),
+  cita_id: optionalUuid,
   sede_id: z.string().uuid("Selecciona una sede"),
   profesional_id: optionalUuid,
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresa una fecha valida"),
@@ -83,7 +83,7 @@ export async function listPodologyAppointments(branchId: string) {
 export async function createPodologyRecord(values: PodologyRecordFormValues) {
   const payload = {
     ...values,
-    cita_id: values.cita_id,
+    cita_id: values.cita_id || null,
     profesional_id: values.profesional_id || null,
     temperatura: values.temperatura || null,
     tipo_piel: values.tipo_piel || null,
@@ -93,3 +93,29 @@ export async function createPodologyRecord(values: PodologyRecordFormValues) {
   if (error) throw new Error(error.message ?? "No se pudo guardar el expediente podologico.");
   return data.id as string;
 }
+export async function softDeletePodologyRecord(id: string) {
+  const { error } = await db.rpc("soft_delete_podology_record", { p_record_id: id });
+  if (!error) return;
+
+  const missingFunction = /soft_delete_podology_record|schema cache|PGRST202/i.test(error.message ?? "");
+  if (!missingFunction) throw new Error(error.message ?? "No se pudo eliminar el expediente podologico.");
+
+  const { error: fallbackError } = await db
+    .from("expedientes_podologia")
+    .update({ eliminado: true })
+    .eq("id", id)
+    .eq("eliminado", false);
+  if (fallbackError) throw new Error(fallbackError.message ?? "No se pudo eliminar el expediente podologico.");
+
+  const { data: remainingRecord, error: verificationError } = await db
+    .from("expedientes_podologia")
+    .select("id")
+    .eq("id", id)
+    .eq("eliminado", false)
+    .maybeSingle();
+  if (verificationError) throw new Error(verificationError.message ?? "No se pudo verificar la eliminacion del expediente.");
+  if (remainingRecord) throw new Error("Supabase no permitio eliminar el expediente. Aplica la migracion pendiente e intenta nuevamente.");
+}
+
+
+

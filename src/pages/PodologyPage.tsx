@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ClipboardPlus, Info, Printer, Sparkles } from "lucide-react";
+import { ClipboardPlus, Printer, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -17,19 +17,23 @@ import { printPodologyRecord } from "../lib/print";
 import { queryClient } from "../lib/queryClient";
 import { listProfessionals } from "../services/catalog";
 import { listPatients } from "../services/patients";
-import { createPodologyRecord, listPodologyAppointments, listPodologyRecords, podologyRecordSchema, type PodologyRecordFormValues } from "../services/podology";
+import { createPodologyRecord, listPodologyAppointments, listPodologyRecords, podologyRecordSchema, softDeletePodologyRecord, type PodologyRecordFormValues } from "../services/podology";
 
 const DISEASES = [["diabetes", "Diabetes"], ["hta", "HTA"], ["artritis", "Artritis"], ["artrosis", "Artrosis"], ["osteoporosis", "Osteoporosis"]] as const;
 const TREATMENTS = [["asepsia", "Asepsia"], ["fomentacion", "Fomentacion"], ["limpieza_surcos", "Limpieza de surcos"], ["onicotomia", "Onicotomia"], ["despiculizacion", "Despiculizacion"], ["resecado", "Resecado"], ["helotomia", "Helotomia"], ["desbastado", "Desbastado"], ["pulido", "Pulido"], ["asepsia_final", "Asepsia final"]] as const;
 const TREATMENT_LABELS = Object.fromEntries(TREATMENTS) as Record<string, string>;
 const NAIL_SHAPES = [["curva", "Curva"], ["recta", "Recta"], ["plana", "Plana"], ["cuchara", "Cuchara"], ["cucharada", "Cucharada"]] as const;
-const SKIN_PROBLEMS = [["psoriasis", "Psoriasis"], ["manchas", "Manchas"], ["tina", "Tiña"], ["vitiligo", "Vitiligo"], ["verrugas", "Verrugas"], ["ampollas", "Ampollas"], ["cicatrices", "Cicatrices"], ["dermatitis", "Dermatitis"]] as const;
+const SKIN_PROBLEMS = [["psoriasis", "Psoriasis"], ["manchas", "Manchas"], ["tina", "Tina"], ["vitiligo", "Vitiligo"], ["verrugas", "Verrugas"], ["ampollas", "Ampollas"], ["cicatrices", "Cicatrices"], ["dermatitis", "Dermatitis"]] as const;
 
 export function PodologyPage() {
   const { selectedBranchId, branches } = useBranch();
   const [open, setOpen] = useState(false);
   const recordsQuery = useQuery({ queryKey: ["podology-records", selectedBranchId], queryFn: () => listPodologyRecords(selectedBranchId) });
   const rows = recordsQuery.data ?? [];
+  const deleteMutation = useMutation({
+    mutationFn: softDeletePodologyRecord,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["podology-records"] })
+  });
 
   return (
     <main className="page">
@@ -40,6 +44,7 @@ export function PodologyPage() {
         action={<Button type="button" variant="primary" onClick={() => setOpen(true)}><ClipboardPlus /> Nueva evaluacion</Button>}
       />
       {recordsQuery.error ? <div className="alert">{recordsQuery.error instanceof Error ? recordsQuery.error.message : "No se pudieron cargar los expedientes"}</div> : null}
+      {deleteMutation.error ? <div className="alert">{deleteMutation.error instanceof Error ? deleteMutation.error.message : "No se pudo eliminar el expediente"}</div> : null}
       <Card>
         {recordsQuery.isLoading ? <TableSkeleton /> : rows.length ? (
           <div className="table-wrap"><table className="table"><thead><tr><th>Fecha</th><th>Paciente</th><th>Motivo</th><th>Hallazgos</th><th>Profesional</th><th>Sede</th><th>Acciones</th></tr></thead>
@@ -50,7 +55,7 @@ export function PodologyPage() {
               <td data-label="Hallazgos">{[...record.enfermedades, ...record.problemas_piel].slice(0, 3).join(", ") || "Sin alertas registradas"}</td>
               <td data-label="Profesional">{fullName(record.profesional)}</td>
               <td data-label="Sede">{record.sede?.nombre}</td>
-              <td data-label="Acciones"><Button type="button" aria-label="Imprimir expediente" onClick={() => printPodologyRecord(record)}><Printer /></Button></td>
+              <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Imprimir expediente" title="Imprimir expediente" onClick={() => printPodologyRecord(record)}><Printer /></Button><Button type="button" variant="danger" aria-label="Eliminar expediente" title="Eliminar expediente" disabled={deleteMutation.isPending} onClick={() => { if (confirm("¿Eliminar este expediente podologico? El registro se ocultara y la accion quedara en auditoria.")) deleteMutation.mutate(record.id); }}><Trash2 /></Button></div></td>
             </tr>)}</tbody></table></div>
         ) : <EmptyState title="Aun no hay evaluaciones podologicas" description="La primera evaluacion quedara enlazada al historial del paciente." />}
       </Card>
@@ -98,9 +103,9 @@ export function PodologyModalLegacy({ branches, defaultBranchId, onClose }: { br
       </div></section>
 
       <section className="form-section"><h3>Evaluacion ungueal y dermatologica</h3><div className="form-grid">
-        <CheckboxGroup legend="Forma de uñas" options={NAIL_SHAPES} registerName="formas_unas" register={register} />
+        <CheckboxGroup legend="Forma de unas" options={NAIL_SHAPES} registerName="formas_unas" register={register} />
         <CheckboxGroup legend="Problemas en la piel" options={SKIN_PROBLEMS} registerName="problemas_piel" register={register} />
-        <Field label="Alteraciones de uñas"><Textarea {...register("alteraciones_unas")} /></Field><Field label="Alergias"><Textarea {...register("alergias")} /></Field>
+        <Field label="Alteraciones de unas"><Textarea {...register("alteraciones_unas")} /></Field><Field label="Alergias"><Textarea {...register("alergias")} /></Field>
         <Field label="Otro problema de piel"><Input {...register("otro_problema_piel")} /></Field><Field label="Tipo de pie"><Select {...register("tipo_pie")}><option value="">No evaluado</option><option value="romano">Romano</option><option value="egipcio">Egipcio</option><option value="griego">Griego</option><option value="cuadrado">Cuadrado</option></Select></Field>
         <Field label="Mapa anatomico - hallazgos"><Textarea {...register("mapa_anatomico_notas")} placeholder="Describe pie, lateralidad y ubicacion precisa" /></Field><Field label="Observaciones"><Textarea {...register("observaciones")} /></Field>
       </div></section>
@@ -110,6 +115,7 @@ export function PodologyModalLegacy({ branches, defaultBranchId, onClose }: { br
 
 function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchId: string; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
+  const patientsQuery = useQuery({ queryKey: ["podology-patients-all"], queryFn: () => listPatients({ pageSize: 500 }) });
   const appointmentsQuery = useQuery({ queryKey: ["podology-appointments", defaultBranchId], queryFn: () => listPodologyAppointments(defaultBranchId) });
   const professionalsQuery = useQuery({ queryKey: ["podology-professionals"], queryFn: () => listProfessionals() });
   const form = useForm<PodologyRecordFormValues>({
@@ -117,6 +123,7 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
     defaultValues: { paciente_id: "", cita_id: "", sede_id: defaultBranchId, profesional_id: null, fecha: todayISO(), motivo_consulta: "", pulso_pedio_izquierdo: null, pulso_pedio_derecho: null, pulso_tibial_izquierdo: null, pulso_tibial_derecho: null, temperatura: null, tipo_piel: null, enfermedades: [], otra_enfermedad: "", tratamientos: [], otro_tratamiento: "", formas_unas: [], alteraciones_unas: "", alergias: "", problemas_piel: [], otro_problema_piel: "", tipo_pie: null, mapa_anatomico_notas: "", observaciones: "" }
   });
   const { register, control, handleSubmit, setValue, formState: { errors } } = form;
+  const patientId = useWatch({ control, name: "paciente_id" });
   const appointmentId = useWatch({ control, name: "cita_id" });
   const watchedDiseases = useWatch({ control, name: "enfermedades" });
   const watchedNailShapes = useWatch({ control, name: "formas_unas" });
@@ -124,6 +131,7 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
   const watchedSkinProblems = useWatch({ control, name: "problemas_piel" });
   const pulses = useWatch({ control, name: ["pulso_pedio_izquierdo", "pulso_pedio_derecho", "pulso_tibial_izquierdo", "pulso_tibial_derecho"] });
   const appointment = (appointmentsQuery.data ?? []).find((item) => item.id === appointmentId);
+  const availableAppointments = (appointmentsQuery.data ?? []).filter((item) => !patientId || item.paciente_id === patientId);
   const diseases = useMemo(() => watchedDiseases ?? [], [watchedDiseases]);
   const nailShapes = useMemo(() => watchedNailShapes ?? [], [watchedNailShapes]);
   const skinProblems = useMemo(() => watchedSkinProblems ?? [], [watchedSkinProblems]);
@@ -151,17 +159,17 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
 
   const mutation = useMutation({ mutationFn: createPodologyRecord, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["podology-records"] }); queryClient.invalidateQueries({ queryKey: ["podology-appointments"] }); onClose(); }, onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "No se pudo guardar el expediente") });
 
-  return <Modal title="Evaluacion podologica desde cita" onClose={onClose} footer={<><Button type="button" onClick={onClose}>Cancelar</Button><Button type="submit" form="podology-appointment-form" variant="primary" disabled={mutation.isPending}>{mutation.isPending ? "Guardando..." : "Guardar evaluacion"}</Button></>}>
+  return <Modal title="Nueva evaluacion podologica" onClose={onClose} footer={<><Button type="button" onClick={onClose}>Cancelar</Button><Button type="submit" form="podology-appointment-form" variant="primary" disabled={mutation.isPending}>{mutation.isPending ? "Guardando..." : "Guardar evaluacion"}</Button></>}>
     <form id="podology-appointment-form" className="stack" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
       {error ? <div className="alert">{error}</div> : null}
-      <section className="form-section form-section--primary"><h3>Cita podologica</h3><div className="form-grid form-grid--three">
-        <Field label="Cita o tratamiento relacionado" error={errors.cita_id?.message}><Select {...register("cita_id")}><option value="">Seleccionar cita</option>{(appointmentsQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{toReadableDate(item.fecha)} - {fullName(item.paciente)} - {item.servicio?.nombre}</option>)}</Select></Field>
-        <Field label="Paciente"><Input value={appointment ? fullName(appointment.paciente) : "Se completa desde la cita"} readOnly /></Field>
-        <Field label="Servicio"><Input value={appointment?.servicio?.nombre ?? ""} readOnly /></Field>
-        <input type="hidden" {...register("paciente_id")} /><input type="hidden" {...register("sede_id")} /><input type="hidden" {...register("fecha")} />
+      <section className="form-section form-section--primary"><h3>Datos de la evaluacion</h3><div className="form-grid form-grid--three">
+        <Field label="Paciente" error={errors.paciente_id?.message}><Select {...register("paciente_id")}><option value="">Seleccionar paciente</option>{(patientsQuery.data?.data ?? []).map((patient) => <option key={patient.id} value={patient.id}>{fullName(patient)} - {patient.dni ? `DNI ${patient.dni}` : patient.telefono}</option>)}</Select></Field>
+        <Field label="Cita relacionada (opcional)"><Select {...register("cita_id")}><option value="">Sin cita relacionada</option>{availableAppointments.map((item) => <option key={item.id} value={item.id}>{toReadableDate(item.fecha)} - {item.servicio?.nombre}</option>)}</Select></Field>
+        <Field label="Servicio relacionado"><Input value={appointment?.servicio?.nombre ?? "Sin cita relacionada"} readOnly /></Field>
+        <input type="hidden" {...register("sede_id")} /><input type="hidden" {...register("fecha")} />
         <Field label="Profesional"><Select {...register("profesional_id")}><option value="">Sin asignar</option>{(professionalsQuery.data ?? []).map((professional) => <option key={professional.id} value={professional.id}>{fullName(professional)}</option>)}</Select></Field>
         <div className="field span-2"><label>Motivo de consulta</label><Textarea {...register("motivo_consulta")} />{errors.motivo_consulta ? <span className="field-error">{errors.motivo_consulta.message}</span> : null}</div>
-      </div><div className="clinical-empty"><Info />Se muestran citas con servicio podologico o con diagnostico, tratamiento u observaciones relacionadas con los pies.</div>{!appointmentsQuery.isLoading && !(appointmentsQuery.data ?? []).length ? <div className="clinical-empty"><Info />No hay citas relacionadas con podologia pendientes de expediente.</div> : null}</section>
+      </div></section>
 
       <section className="form-section"><h3>Evaluacion neurovascular y piel</h3><div className="form-grid form-grid--three">
         <Field label="Pulso pedio izquierdo"><Select {...register("pulso_pedio_izquierdo")}><option value="">No evaluado</option><option value="true">Presente</option><option value="false">Ausente</option></Select></Field>
@@ -186,3 +194,6 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
     </form>
   </Modal>;
 }
+
+
+

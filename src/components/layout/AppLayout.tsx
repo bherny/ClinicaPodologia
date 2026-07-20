@@ -1,5 +1,5 @@
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+﻿import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -47,10 +47,15 @@ function LayoutContent() {
   const { profile, signOut } = useAuth();
   const { branches, selectedBranchId, setSelectedBranchId, canSelectAll } = useBranch();
   const navigate = useNavigate();
+  const location = useLocation();
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", selectedBranchId],
     queryFn: () => getDashboardData(selectedBranchId)
   });
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -192,3 +197,4 @@ export function AppLayout() {
     </BranchProvider>
   );
 }
+

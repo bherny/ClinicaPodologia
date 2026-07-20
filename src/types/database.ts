@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Auditoria,
   Cita,
   Comprobante,
@@ -134,6 +134,10 @@ export type Database = {
         Args: { p_history_id: string };
         Returns: null;
       };
+      soft_delete_podology_record: {
+        Args: { p_record_id: string };
+        Returns: null;
+      };
       create_prescription: {
         Args: {
           p_patient_id: string;
@@ -199,3 +203,4 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+
