@@ -1,4 +1,4 @@
-﻿import { APPOINTMENT_STATUS_LABELS } from "../constants";
+import { APPOINTMENT_STATUS_LABELS } from "../constants";
 import { toReadableDateLong, toReadableTime } from "./date";
 import { fullName } from "./format";
 import type { CitaDetalle, ExpedientePodologiaDetalle, RecetaDetalle, VentaDetalle } from "../types/domain";
@@ -239,13 +239,120 @@ export function printSaleReceipt(sale: VentaDetalle) {
   <table><thead><tr><th>Cant.</th><th>Descripcion</th><th>P. unit.</th><th>Importe</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div><span>Subtotal</span><span>S/ ${Number(sale.subtotal).toFixed(2)}</span></div><div><span>Descuento</span><span>S/ ${Number(sale.descuento).toFixed(2)}</span></div>${Number(sale.igv) > 0 ? `<div><span>Recargo</span><span>S/ ${Number(sale.igv).toFixed(2)}</span></div>` : ""}<div class="total"><span>Total</span><span>S/ ${Number(sale.total).toFixed(2)}</span></div></div><div class="footer">Gracias por su preferencia - Body Feet</div></main><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></body></html>`;
   openPrintWindow(html);
 }
+export async function downloadSaleReceiptPdf(sale: VentaDetalle) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const receipt = sale.comprobante;
+  const number = receipt
+    ? `${receipt.serie}-${String(receipt.numero).padStart(8, "0")}`
+    : sale.id.slice(0, 8).toUpperCase();
+  const client = (receipt?.cliente_nombre ?? fullName(sale.paciente)) || "Cliente";
+  const payment = sale.metodo_pago.charAt(0).toUpperCase() + sale.metodo_pago.slice(1);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 0;
 
+  const drawHeader = () => {
+    doc.setFillColor(11, 69, 92);
+    doc.rect(0, 0, pageWidth, 34, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("BODY FEET", margin, 15);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Centro de Podologia y Rehabilitacion", margin, 22);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("CONSTANCIA DE VENTA", pageWidth - margin, 14, { align: "right" });
+    doc.setFontSize(10);
+    doc.text(number, pageWidth - margin, 22, { align: "right" });
+    y = 43;
+  };
 
+  const drawItemsHeader = () => {
+    doc.setFillColor(234, 247, 251);
+    doc.rect(margin, y, contentWidth, 9, "F");
+    doc.setTextColor(49, 84, 112);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("CANT.", margin + 2, y + 6);
+    doc.text("DESCRIPCION", margin + 23, y + 6);
+    doc.text("P. UNIT.", pageWidth - margin - 50, y + 6, { align: "right" });
+    doc.text("IMPORTE", pageWidth - margin - 2, y + 6, { align: "right" });
+    y += 9;
+  };
 
+  drawHeader();
+  doc.setTextColor(24, 50, 74);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("Cliente", margin, y);
+  doc.text("Fecha", 115, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(client, margin, y + 6);
+  doc.text(toReadableDateLong(sale.fecha.slice(0, 10)), 115, y + 6);
+  y += 16;
+  doc.setFont("helvetica", "bold");
+  doc.text("Documento", margin, y);
+  doc.text("Medio de pago", 115, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(receipt?.cliente_numero_documento ?? sale.paciente?.dni ?? "Sin documento", margin, y + 6);
+  doc.text(payment + (sale.numero_operacion ? ` - Op. ${sale.numero_operacion}` : ""), 115, y + 6);
+  y += 15;
+  drawItemsHeader();
 
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  for (const item of sale.items) {
+    const description = doc.splitTextToSize(item.descripcion, 96) as string[];
+    const rowHeight = Math.max(9, description.length * 4 + 4);
+    if (y + rowHeight > 255) {
+      doc.addPage();
+      drawHeader();
+      drawItemsHeader();
+    }
+    doc.setDrawColor(216, 229, 237);
+    doc.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
+    doc.setTextColor(24, 50, 74);
+    doc.text(Number(item.cantidad).toFixed(2), margin + 2, y + 6);
+    doc.text(description, margin + 23, y + 5);
+    doc.text(`S/ ${Number(item.precio_unitario).toFixed(2)}`, pageWidth - margin - 50, y + 6, { align: "right" });
+    doc.text(`S/ ${Number(item.importe).toFixed(2)}`, pageWidth - margin - 2, y + 6, { align: "right" });
+    y += rowHeight;
+  }
 
+  y += 8;
+  if (y > 245) {
+    doc.addPage();
+    drawHeader();
+  }
+  const totalsX = pageWidth - margin - 72;
+  doc.setFontSize(9);
+  doc.text("Subtotal", totalsX, y);
+  doc.text(`S/ ${Number(sale.subtotal).toFixed(2)}`, pageWidth - margin, y, { align: "right" });
+  y += 6;
+  doc.text("Descuento", totalsX, y);
+  doc.text(`S/ ${Number(sale.descuento).toFixed(2)}`, pageWidth - margin, y, { align: "right" });
+  if (Number(sale.igv) > 0) {
+    y += 6;
+    doc.text("Recargo", totalsX, y);
+    doc.text(`S/ ${Number(sale.igv).toFixed(2)}`, pageWidth - margin, y, { align: "right" });
+  }
+  y += 8;
+  doc.setDrawColor(49, 84, 112);
+  doc.line(totalsX, y - 5, pageWidth - margin, y - 5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("TOTAL", totalsX, y);
+  doc.text(`S/ ${Number(sale.total).toFixed(2)}`, pageWidth - margin, y, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(96, 121, 140);
+  doc.text(`Sede: ${sale.sede?.nombre ?? "Body Feet"}`, margin, 282);
+  doc.text("Gracias por su preferencia", pageWidth - margin, 282, { align: "right" });
 
-
-
-
-
+  const safeNumber = number.replace(/[^a-zA-Z0-9-]/g, "-");
+  doc.save(`body-feet-venta-${safeNumber}.pdf`);
+}

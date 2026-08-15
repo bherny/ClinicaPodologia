@@ -1,6 +1,6 @@
 import { addDays, format } from "date-fns";
 import { supabase } from "../lib/supabase";
-import { todayISO } from "../lib/date";
+import { startOfTodayISO, todayISO } from "../lib/date";
 import type { CitaDetalle, EstadoCita, PacienteResumen } from "../types/domain";
 
 const db = supabase as any;
@@ -30,7 +30,7 @@ export async function getDashboardData(branchId: string) {
     .from("pacientes")
     .select("id", { count: "exact", head: true })
     .eq("eliminado", false)
-    .gte("created_at", `${today}T00:00:00`);
+    .gte("created_at", startOfTodayISO());
 
   let totalPatientsQuery = db
     .from("pacientes")

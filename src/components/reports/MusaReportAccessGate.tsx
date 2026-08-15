@@ -1,13 +1,13 @@
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { KeyRound, LockKeyhole, ShieldCheck, UserRoundCheck } from "lucide-react";
-import { verifyMusaCashPin, type MusaCashSecurityStatus } from "../../services/cashSecurity";
+import { BarChart3, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
+import { verifyMusaReportPin, type MusaReportSecurityStatus } from "../../services/reportSecurity";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Field";
 
-type MusaCashAccessGateProps = {
-  status: MusaCashSecurityStatus;
+type MusaReportAccessGateProps = {
+  status: MusaReportSecurityStatus;
   isAdministrator: boolean;
   onUnlocked: () => void;
   onConfigure: () => void;
@@ -18,12 +18,12 @@ function accessTime(value: string | null) {
   return new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
-export function MusaCashAccessGate({ status, isAdministrator, onUnlocked, onConfigure }: MusaCashAccessGateProps) {
+export function MusaReportAccessGate({ status, isAdministrator, onUnlocked, onConfigure }: MusaReportAccessGateProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const blocked = Boolean(status.bloqueado_hasta && new Date(status.bloqueado_hasta).getTime() > Date.now());
   const mutation = useMutation({
-    mutationFn: verifyMusaCashPin,
+    mutationFn: verifyMusaReportPin,
     onSuccess: (result) => {
       setPin("");
       if (result.exito) {
@@ -49,35 +49,27 @@ export function MusaCashAccessGate({ status, isAdministrator, onUnlocked, onConf
 
   return (
     <Card>
-      <section className="musa-access-gate" aria-labelledby="musa-access-title">
-        <div className="musa-access-gate__icon"><LockKeyhole aria-hidden="true" /></div>
+      <section className="musa-access-gate" aria-labelledby="musa-report-access-title">
+        <div className="musa-access-gate__icon"><BarChart3 aria-hidden="true" /></div>
         <div className="musa-access-gate__content">
-          <span className="eyebrow">Acceso restringido</span>
-          <h2 id="musa-access-title">Caja y ventas de Musa</h2>
-          <p>Solo un equipo puede mantener abierta esta caja. Los cambios de ventas aparecen en tiempo real.</p>
+          <span className="eyebrow">Reporte protegido</span>
+          <h2 id="musa-report-access-title">Reportes de la sede Musa</h2>
+          <p>Ingresa el mismo PIN de Caja Musa. Esta consulta no abre ni ocupa la caja de recepcion.</p>
 
           {!status.configurado ? (
             <div className="stack stack--compact">
-              <div className="alert alert--info">El PIN de Caja Musa aun no esta configurado.</div>
+              <div className="alert alert--info">El PIN de Musa aun no esta configurado.</div>
               {isAdministrator ? <Button type="button" variant="primary" onClick={onConfigure}><ShieldCheck /> Configurar en Administracion</Button> : <p className="muted">Solicita al administrador que configure el PIN.</p>}
-            </div>
-          ) : status.ocupada_por_otro ? (
-            <div className="cash-occupied" role="status" aria-live="polite">
-              <div className="cash-occupied__icon"><UserRoundCheck aria-hidden="true" /></div>
-              <div>
-                <strong>Caja abierta en otro equipo</strong>
-                <p>{status.ocupada_por ?? "Otro usuario"} la tiene abierta{status.ocupada_desde ? ` desde ${accessTime(status.ocupada_desde)}` : ""}.</p>
-                <small>Se liberara al cerrarla o despues de aproximadamente 90 segundos sin actividad.</small>
-              </div>
             </div>
           ) : (
             <form className="musa-access-form" onSubmit={submit}>
-              <label htmlFor="musa-cash-pin">PIN de acceso</label>
+              <label htmlFor="musa-report-pin">PIN de acceso</label>
               <div className="musa-access-form__controls">
                 <Input
-                  id="musa-cash-pin"
+                  id="musa-report-pin"
                   type="password"
                   inputMode="numeric"
+                  voiceMode="off"
                   autoComplete="off"
                   maxLength={8}
                   value={pin}
@@ -86,11 +78,11 @@ export function MusaCashAccessGate({ status, isAdministrator, onUnlocked, onConf
                   autoFocus
                 />
                 <Button type="submit" variant="primary" disabled={blocked || mutation.isPending}>
-                  <KeyRound /> {mutation.isPending ? "Validando..." : "Abrir caja"}
+                  <KeyRound /> {mutation.isPending ? "Validando..." : "Ver reportes"}
                 </Button>
               </div>
-              <small>La sesion se mantiene mientras este equipo permanezca activo.</small>
-              {blocked ? <div className="alert">Acceso bloqueado hasta {accessTime(status.bloqueado_hasta)}.</div> : null}
+              <small>La autorizacion corresponde solo a esta sesion y se puede cerrar manualmente.</small>
+              {blocked ? <div className="alert"><LockKeyhole /> Acceso bloqueado hasta {accessTime(status.bloqueado_hasta)}.</div> : null}
               {error ? <div className="alert" role="alert">{error}</div> : null}
             </form>
           )}

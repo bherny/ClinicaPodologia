@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Banknote, Edit, FilePlus2, LockKeyhole, Plus, Printer, ShieldAlert, Trash2 } from "lucide-react";
+import { Banknote, Download, Edit, FilePlus2, LockKeyhole, Plus, Radio, ShieldAlert, Trash2 } from "lucide-react";
 import { MusaCashAccessGate } from "../components/sales/MusaCashAccessGate";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -16,12 +16,12 @@ import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { toReadableDate } from "../lib/date";
 import { fullName } from "../lib/format";
-import { printSaleReceipt } from "../lib/print";
+import { downloadSaleReceiptPdf } from "../lib/print";
 import { queryClient } from "../lib/queryClient";
-import { getMusaCashSecurityStatus, lockMusaCashAccess } from "../services/cashSecurity";
+import { getMusaCashSecurityStatus, heartbeatMusaCashAccess, lockMusaCashAccess } from "../services/cashSecurity";
 import { listServices } from "../services/catalog";
 import { listPatients } from "../services/patients";
-import { createSale, listSales, saleSchema, softDeleteSale, updateSale, type SaleFormValues } from "../services/sales";
+import { createSale, listSales, saleSchema, softDeleteSale, subscribeToSalesChanges, updateSale, type SaleFormValues } from "../services/sales";
 import type { VentaDetalle } from "../types/domain";
 
 const PAYMENT_LABELS: Record<string, string> = { efectivo: "Efectivo", yape: "Yape", plin: "Plin", tarjeta: "Tarjeta", transferencia: "Transferencia", mixto: "Mixto", otro: "Otro" };
@@ -45,9 +45,9 @@ export function SalesPage() {
     queryFn: getMusaCashSecurityStatus,
     enabled: Boolean(musaBranch && shouldCheckMusa),
     retry: false,
-    refetchInterval: 30_000
+    refetchInterval: 5_000
   });
-  const musaAuthorized = musaSecurityQuery.data?.autorizado ?? false;
+  const musaAuthorized = shouldCheckMusa && (musaSecurityQuery.data?.autorizado ?? false);
   const salesQuery = useQuery({
     queryKey: ["sales", selectedBranchId, from, to, musaAuthorized],
     queryFn: () => listSales(selectedBranchId, from, to),
@@ -79,6 +79,47 @@ export function SalesPage() {
     onError: (nextError) => setActionError(nextError instanceof Error ? nextError.message : "No se pudo bloquear Caja Musa")
   });
 
+  useEffect(() => subscribeToSalesChanges(() => {
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+  }), []);
+
+  useEffect(() => {
+    if (!musaAuthorized) return;
+    let active = true;
+
+    const heartbeat = async () => {
+      try {
+        const alive = await heartbeatMusaCashAccess();
+        if (!alive && active) {
+          setOpen(false);
+          setEditingSale(null);
+          queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+          queryClient.invalidateQueries({ queryKey: ["sales"] });
+        }
+      } catch (nextError) {
+        if (active) setActionError(nextError instanceof Error ? nextError.message : "Se perdio la conexion en tiempo real con Caja Musa.");
+      }
+    };
+
+    void heartbeat();
+    const intervalId = window.setInterval(heartbeat, 20_000);
+    const resume = () => { if (document.visibilityState === "visible") void heartbeat(); };
+    document.addEventListener("visibilitychange", resume);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", resume);
+      void lockMusaCashAccess().catch(() => undefined);
+    };
+  }, [musaAuthorized]);
+
+  useEffect(() => {
+    if (!musaSecurityQuery.data || musaAuthorized) return;
+    setOpen(false);
+    setEditingSale(null);
+  }, [musaAuthorized, musaSecurityQuery.data]);
+
   useEffect(() => {
     if (!(location.state as { openNewSale?: boolean } | null)?.openNewSale) return;
     if (isMusaSelected && !musaAuthorized) return;
@@ -93,6 +134,7 @@ export function SalesPage() {
     : branches.find((branch) => branch.id !== lockedMusaId)?.id ?? "";
   const pageAction = isMusaSelected && !musaAuthorized ? null : (
     <div className="inline">
+      <span className="live-status" title="Las ventas se actualizan automaticamente"><Radio /> En vivo</span>
       {musaAuthorized && shouldCheckMusa ? (
         <Button type="button" onClick={() => lockMutation.mutate()} disabled={lockMutation.isPending}>
           <LockKeyhole /> {lockMutation.isPending ? "Bloqueando..." : "Bloquear Caja Musa"}
@@ -155,7 +197,7 @@ export function SalesPage() {
         <td data-label="Detalle">{sale.items.map((item) => item.descripcion).join(", ")}</td>
         <td data-label="Pago">{PAYMENT_LABELS[sale.metodo_pago]}{sale.numero_operacion ? <div className="muted">Op. {sale.numero_operacion}</div> : null}</td>
         <td data-label="Sede">{sale.sede?.nombre}</td><td data-label="Total"><strong>{money(Number(sale.total))}</strong></td>
-        <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Imprimir constancia de venta" title="Imprimir constancia" onClick={() => printSaleReceipt(sale)}><Printer /></Button><Button type="button" aria-label="Editar venta" title="Editar venta" onClick={() => { setEditingSale(sale); setOpen(true); }}><Edit /></Button><Button type="button" variant="danger" aria-label="Anular venta" title="Anular venta" disabled={deleteMutation.isPending} onClick={() => { if (confirm("Anular esta venta? El movimiento quedara conservado en auditoria.")) deleteMutation.mutate(sale.id); }}><Trash2 /></Button></div></td>
+        <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Descargar constancia de venta" title="Descargar constancia PDF" onClick={() => { void downloadSaleReceiptPdf(sale).catch((downloadError) => setActionError(downloadError instanceof Error ? downloadError.message : "No se pudo descargar la constancia")); }}><Download /></Button><Button type="button" aria-label="Editar venta" title="Editar venta" onClick={() => { setEditingSale(sale); setOpen(true); }}><Edit /></Button><Button type="button" variant="danger" aria-label="Anular venta" title="Anular venta" disabled={deleteMutation.isPending} onClick={() => { if (confirm("Anular esta venta? El movimiento quedara conservado en auditoria.")) deleteMutation.mutate(sale.id); }}><Trash2 /></Button></div></td>
       </tr>)}</tbody></table></div> : <EmptyState title="No hay ventas en el periodo" description="Cada cobro registrado aparecera aqui con su detalle y medio de pago." />}
     </Card>
     {open ? <SaleModal sale={editingSale} branches={branches} lockedBranchId={lockedMusaId} defaultBranchId={defaultSaleBranchId} onClose={() => { setOpen(false); setEditingSale(null); }} /> : null}

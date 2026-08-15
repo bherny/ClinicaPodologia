@@ -1,7 +1,9 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
+import { PatientProtectedRoute } from "./components/layout/PatientProtectedRoute";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
+import { TableSkeleton } from "./components/ui/Skeleton";
 import { LoginPage } from "./pages/LoginPage";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((module) => ({ default: module.DashboardPage })));
@@ -15,27 +17,38 @@ const AuditPage = lazy(() => import("./pages/AuditPage").then((module) => ({ def
 const PrescriptionsPage = lazy(() => import("./pages/PrescriptionsPage").then((module) => ({ default: module.PrescriptionsPage })));
 const PodologyPage = lazy(() => import("./pages/PodologyPage").then((module) => ({ default: module.PodologyPage })));
 const SalesPage = lazy(() => import("./pages/SalesPage").then((module) => ({ default: module.SalesPage })));
+const ReportsPage = lazy(() => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage })));
+const PatientPortalPage = lazy(() => import("./pages/PatientPortalPage").then((module) => ({ default: module.PatientPortalPage })));
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="pacientes" element={<PatientsPage />} />
-          <Route path="citas" element={<AppointmentsPage />} />
-          <Route path="calendario" element={<CalendarPage />} />
-          <Route path="historias" element={<ClinicalHistoryPage />} />
-          <Route path="recetas" element={<PrescriptionsPage />} />
-          <Route path="podologia" element={<PodologyPage />} />
-          <Route path="ventas" element={<SalesPage />} />
-          <Route path="recordatorios" element={<RemindersPage />} />
-          <Route path="administracion" element={<AdminPage />} />
-          <Route path="auditoria" element={<AuditPage />} />
+    <Suspense fallback={<main className="page"><TableSkeleton rows={8} /></main>}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+
+        <Route element={<PatientProtectedRoute />}>
+          <Route path="mi-historial" element={<PatientPortalPage />} />
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="pacientes" element={<PatientsPage />} />
+            <Route path="citas" element={<AppointmentsPage />} />
+            <Route path="calendario" element={<CalendarPage />} />
+            <Route path="historias" element={<ClinicalHistoryPage />} />
+            <Route path="recetas" element={<PrescriptionsPage />} />
+            <Route path="podologia" element={<PodologyPage />} />
+            <Route path="ventas" element={<SalesPage />} />
+            <Route path="reportes" element={<ReportsPage />} />
+            <Route path="recordatorios" element={<RemindersPage />} />
+            <Route path="administracion" element={<AdminPage />} />
+            <Route path="auditoria" element={<AuditPage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

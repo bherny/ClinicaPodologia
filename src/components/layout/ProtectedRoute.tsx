@@ -3,7 +3,7 @@ import { useAuth } from "../../context/AuthContext";
 import { TableSkeleton } from "../ui/Skeleton";
 
 export function ProtectedRoute() {
-  const { session, loading, profileError } = useAuth();
+  const { session, profile, loading, profileError } = useAuth();
 
   if (loading) {
     return (
@@ -15,10 +15,10 @@ export function ProtectedRoute() {
 
   if (!session) return <Navigate to="/login" replace />;
 
-  if (profileError) {
+  if (profileError || !profile) {
     return (
       <main className="page">
-        <div className="alert">{profileError}</div>
+        <div className="alert">{profileError ?? "Tu usuario no tiene un perfil activo en Body Feet."}</div>
       </main>
     );
   }

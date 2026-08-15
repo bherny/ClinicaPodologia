@@ -6,13 +6,16 @@ import { App } from "./App";
 import { ErrorBoundary } from "./components/layout/ErrorBoundary";
 import { AuthProvider } from "./context/AuthContext";
 import { queryClient } from "./lib/queryClient";
+import { installSoundUnlock } from "./lib/sound";
 import "./styles/global.css";
+
+installSoundUnlock();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter>
           <ErrorBoundary>
             <App />
           </ErrorBoundary>

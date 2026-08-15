@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Edit, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { Copy, Edit, KeyRound, Plus, Printer, RefreshCw, Search, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -16,9 +16,14 @@ import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { queryClient } from "../lib/queryClient";
 import { fullName } from "../lib/format";
-import { toReadableDate, toReadableTime } from "../lib/date";
+import { todayISO, toReadableDate, toReadableTime } from "../lib/date";
 import { printPrescription } from "../lib/print";
 import { getPatientPrescriptions } from "../services/prescriptions";
+import {
+  configurePatientPortalPin,
+  getPatientPortalAccessStatus,
+  revokePatientPortalAccess
+} from "../services/patientPortal";
 import {
   createPatient,
   getPatientAppointments,
@@ -53,6 +58,7 @@ export function PatientsPage() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<PacienteResumen | null>(null);
   const [detail, setDetail] = useState<PacienteResumen | null>(null);
+  const [portalPatient, setPortalPatient] = useState<PacienteResumen | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,6 +172,16 @@ export function PatientsPage() {
                           <Button type="button" onClick={() => setEditing(patient)} aria-label="Editar paciente">
                             <Edit />
                           </Button>
+                          {profile?.rol === "administrador" || profile?.rol === "recepcion" ? (
+                            <Button
+                              type="button"
+                              onClick={() => setPortalPatient(patient)}
+                              aria-label="Configurar acceso al portal del paciente"
+                              title="Configurar acceso al portal"
+                            >
+                              <KeyRound />
+                            </Button>
+                          ) : null}
                           <Button
                             type="button"
                             variant="danger"
@@ -209,6 +225,9 @@ export function PatientsPage() {
       ) : null}
 
       {detail ? <PatientDetail patient={detail} onClose={() => setDetail(null)} /> : null}
+      {portalPatient ? (
+        <PatientPortalPinModal patient={portalPatient} onClose={() => setPortalPatient(null)} />
+      ) : null}
     </main>
   );
 }
@@ -324,6 +343,209 @@ function PatientModal({
   );
 }
 
+function generatePatientPortalPin() {
+  const range = 900_000;
+  const limit = Math.floor(0x1_0000_0000 / range) * range;
+  const random = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(random);
+  } while (random[0] >= limit);
+  return String(100_000 + (random[0] % range));
+}
+
+function PatientPortalPinModal({ patient, onClose }: { patient: PacienteResumen; onClose: () => void }) {
+  const [pin, setPin] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [configuredPin, setConfiguredPin] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const statusQuery = useQuery({
+    queryKey: ["patient-portal-access", patient.id],
+    queryFn: () => getPatientPortalAccessStatus(patient.id)
+  });
+
+  const configureMutation = useMutation({
+    mutationFn: (nextPin: string) => configurePatientPortalPin(patient.id, nextPin),
+    onSuccess: (_result, savedPin) => {
+      setConfiguredPin(savedPin);
+      setPin("");
+      setConfirmation("");
+      setError(null);
+      setNotice("Acceso configurado. Entrega este PIN al paciente de forma privada.");
+      queryClient.invalidateQueries({ queryKey: ["patient-portal-access", patient.id] });
+    },
+    onError: (nextError) => setError(getErrorMessage(nextError, "No se pudo configurar el PIN."))
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: () => revokePatientPortalAccess(patient.id),
+    onSuccess: () => {
+      setConfiguredPin(null);
+      setError(null);
+      setNotice("El acceso al portal fue desactivado y sus sesiones quedaron cerradas.");
+      queryClient.invalidateQueries({ queryKey: ["patient-portal-access", patient.id] });
+    },
+    onError: (nextError) => setError(getErrorMessage(nextError, "No se pudo desactivar el acceso."))
+  });
+
+  const savePin = () => {
+    setError(null);
+    setNotice(null);
+    setConfiguredPin(null);
+    if (!/^\d{6,10}$/.test(pin)) {
+      setError("El PIN debe tener entre 6 y 10 digitos.");
+      return;
+    }
+    if (pin !== confirmation) {
+      setError("La confirmacion no coincide con el PIN.");
+      return;
+    }
+    configureMutation.mutate(pin);
+  };
+
+  const generatePin = () => {
+    const nextPin = generatePatientPortalPin();
+    setPin(nextPin);
+    setConfirmation(nextPin);
+    setConfiguredPin(null);
+    setError(null);
+    setNotice("PIN seguro generado. Guarda para activarlo.");
+  };
+
+  const copyPin = async () => {
+    if (!configuredPin) return;
+    try {
+      await navigator.clipboard.writeText(configuredPin);
+      setNotice("PIN copiado. Compartelo solamente con el paciente.");
+    } catch {
+      setError("No se pudo copiar. Selecciona el PIN y copialo manualmente.");
+    }
+  };
+
+  const isBusy = configureMutation.isPending || revokeMutation.isPending;
+  const status = statusQuery.data;
+
+  return (
+    <Modal
+      title="Acceso del paciente"
+      onClose={onClose}
+      footer={
+        <>
+          {status?.active ? (
+            <Button
+              type="button"
+              variant="danger"
+              disabled={isBusy}
+              onClick={() => {
+                if (confirm("¿Desactivar el acceso y cerrar todas las sesiones de este paciente?")) {
+                  revokeMutation.mutate();
+                }
+              }}
+            >
+              <ShieldOff />
+              Desactivar acceso
+            </Button>
+          ) : null}
+          <Button type="button" onClick={onClose}>Cerrar</Button>
+          <Button form="patient-portal-pin-form" type="submit" variant="primary" disabled={isBusy}>
+            <KeyRound />
+            {status?.configured ? "Cambiar PIN" : "Activar acceso"}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="patient-portal-pin-form"
+        className="stack portal-pin-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          savePin();
+        }}
+      >
+        <div className="portal-pin-patient">
+          <div>
+            <span>Paciente</span>
+            <strong>{fullName(patient)}</strong>
+          </div>
+          <div>
+            <span>Telefono registrado</span>
+            <strong>{patient.telefono}</strong>
+          </div>
+        </div>
+
+        {statusQuery.isLoading ? <p className="muted">Consultando acceso...</p> : null}
+        {statusQuery.error ? (
+          <div className="alert" role="alert">
+            {getErrorMessage(statusQuery.error, "No se pudo consultar el acceso.")}
+          </div>
+        ) : null}
+        {status ? (
+          <div className={`portal-pin-status${status.active ? " portal-pin-status--active" : ""}`}>
+            <KeyRound />
+            <div>
+              <strong>{status.active ? "Acceso activo" : status.configured ? "Acceso desactivado" : "Acceso sin configurar"}</strong>
+              <span>
+                {status.blocked_until
+                  ? `Bloqueado hasta ${new Date(status.blocked_until).toLocaleString("es-PE")}`
+                  : "El paciente ingresara con su telefono y este PIN privado."}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? <div className="alert" role="alert">{error}</div> : null}
+        {notice ? <div className="alert alert--success" role="status">{notice}</div> : null}
+
+        {configuredPin ? (
+          <div className="portal-pin-result">
+            <span>PIN para entregar ahora</span>
+            <strong>{configuredPin}</strong>
+            <Button type="button" onClick={() => void copyPin()}>
+              <Copy />
+              Copiar PIN
+            </Button>
+            <small>Por seguridad, este PIN no volvera a mostrarse cuando cierres la ventana.</small>
+          </div>
+        ) : null}
+
+        <div className="form-grid">
+          <Field label="Nuevo PIN">
+            <Input
+              type="password"
+              inputMode="numeric"
+              voiceMode="off"
+              autoComplete="new-password"
+              value={pin}
+              maxLength={10}
+              onChange={(event) => setPin(event.target.value.replace(/\D/g, ""))}
+              placeholder="6 a 10 digitos"
+            />
+          </Field>
+          <Field label="Confirmar PIN">
+            <Input
+              type="password"
+              inputMode="numeric"
+              voiceMode="off"
+              autoComplete="new-password"
+              value={confirmation}
+              maxLength={10}
+              onChange={(event) => setConfirmation(event.target.value.replace(/\D/g, ""))}
+              placeholder="Repite el PIN"
+            />
+          </Field>
+        </div>
+        <Button type="button" onClick={generatePin} disabled={isBusy}>
+          <RefreshCw />
+          Generar PIN seguro
+        </Button>
+        <p className="muted portal-pin-help">
+          Cambiar el PIN cierra las sesiones anteriores. Body Feet guarda un hash, no el PIN legible.
+        </p>
+      </form>
+    </Modal>
+  );
+}
 function PatientDetail({ patient, onClose }: { patient: PacienteResumen; onClose: () => void }) {
   const { profile } = useAuth();
   const tabs = profile?.rol === "recepcion"
@@ -349,7 +571,7 @@ function PatientDetail({ patient, onClose }: { patient: PacienteResumen; onClose
   });
 
   const upcoming = useMemo(
-    () => (appointmentsQuery.data ?? []).filter((appointment) => appointment.fecha >= new Date().toISOString().slice(0, 10)),
+    () => (appointmentsQuery.data ?? []).filter((appointment) => appointment.fecha >= todayISO()),
     [appointmentsQuery.data]
   );
 

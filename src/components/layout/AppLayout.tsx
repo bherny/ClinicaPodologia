@@ -1,7 +1,8 @@
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BarChart3,
   Bell,
   Building2,
   CalendarDays,
@@ -14,14 +15,18 @@ import {
   Menu,
   NotebookPen,
   Search,
+  Sparkles,
   Settings,
   Stethoscope,
   Users,
+  Volume2,
+  VolumeX,
   WalletCards
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Field";
 import { VoiceInputButton } from "../ui/VoiceInputButton";
+import { BodyFeetAiAssistant } from "../ai/BodyFeetAiAssistant";
 import { useAuth } from "../../context/AuthContext";
 import { BranchProvider, useBranch } from "../../context/BranchContext";
 import { ROLE_LABELS } from "../../constants";
@@ -29,6 +34,7 @@ import { TableSkeleton } from "../ui/Skeleton";
 import { getDashboardData } from "../../services/dashboard";
 import { createBranchThemeStyle } from "../../lib/branchTheme";
 import { appendDictation } from "../../lib/voice";
+import { isUiSoundEnabled, playUiSound, setUiSoundEnabled } from "../../lib/sound";
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
@@ -39,6 +45,7 @@ const navItems = [
   { to: "/podologia", label: "Expedientes podologicos", icon: Footprints },
   { to: "/recetas", label: "Recetas", icon: NotebookPen },
   { to: "/ventas", label: "Caja y ventas", icon: WalletCards },
+  { to: "/reportes", label: "Reportes", icon: BarChart3 },
   { to: "/recordatorios", label: "Recordatorios", icon: FileClock },
   { to: "/administracion", label: "Administracion", icon: Settings },
   { to: "/auditoria", label: "Auditoria", icon: History }
@@ -46,7 +53,9 @@ const navItems = [
 
 function LayoutContent() {
   const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
+  const [soundEnabled, setSoundEnabled] = useState(isUiSoundEnabled);
   const { profile, signOut } = useAuth();
   const { branches, selectedBranchId, setSelectedBranchId, canSelectAll } = useBranch();
   const navigate = useNavigate();
@@ -72,7 +81,7 @@ function LayoutContent() {
   const visibleNav = navItems.filter((item) => {
     if (["/administracion", "/auditoria"].includes(item.to)) return profile?.rol === "administrador";
     if (["/historias", "/podologia", "/recetas"].includes(item.to)) return profile?.rol !== "recepcion";
-    if (item.to === "/ventas") return profile?.rol !== "profesional";
+    if (["/ventas", "/reportes"].includes(item.to)) return profile?.rol !== "profesional";
     return true;
   });
 
@@ -90,6 +99,14 @@ function LayoutContent() {
   };
 
   const pendingNotifications = dashboardQuery.data?.pendingReminders.length ?? 0;
+  const previousPendingNotifications = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!dashboardQuery.isSuccess) return;
+    const previous = previousPendingNotifications.current;
+    if (previous !== null && pendingNotifications > previous) playUiSound("notification");
+    previousPendingNotifications.current = pendingNotifications;
+  }, [dashboardQuery.isSuccess, pendingNotifications]);
   const activeBranch = selectedBranchId === "all" ? null : branches.find((branch) => branch.id === selectedBranchId) ?? null;
   const branchThemeStyle = useMemo(() => createBranchThemeStyle(activeBranch), [activeBranch]);
 
@@ -117,6 +134,7 @@ function LayoutContent() {
             </NavLink>
           ))}
         </nav>
+
         <div className="sidebar__nurse" aria-hidden="true">
           <img src="/body-feet-nurse.png" alt="" />
         </div>
@@ -151,6 +169,7 @@ function LayoutContent() {
             </form>
           </div>
           <div className="topbar__right">
+
             <label className="topbar-branch">
               <Building2 aria-hidden="true" />
               <span className="sr-only">Seleccionar sede</span>
@@ -170,8 +189,25 @@ function LayoutContent() {
             <button
               className="notification-button"
               type="button"
+              aria-label={soundEnabled ? "Silenciar sonidos" : "Activar sonidos"}
+              title={soundEnabled ? "Silenciar sonidos" : "Activar sonidos"}
+              onClick={() => {
+                const nextEnabled = !soundEnabled;
+                setUiSoundEnabled(nextEnabled);
+                setSoundEnabled(nextEnabled);
+                if (nextEnabled) playUiSound("tap");
+              }}
+            >
+              {soundEnabled ? <Volume2 /> : <VolumeX />}
+            </button>
+            <button
+              className="notification-button"
+              type="button"
               aria-label={`${pendingNotifications} recordatorios pendientes`}
-              onClick={() => navigate("/recordatorios")}
+              onClick={() => {
+                playUiSound("tap");
+                navigate("/recordatorios");
+              }}
             >
               <Bell />
               {pendingNotifications > 0 ? <span>{pendingNotifications > 9 ? "9+" : pendingNotifications}</span> : null}
@@ -198,6 +234,25 @@ function LayoutContent() {
           <Outlet />
         </Suspense>
       </main>
+      {!aiOpen && !open ? (
+        <button
+          className="ai-floating-launch"
+          type="button"
+          aria-label="Abrir La IA de Body Feet"
+          onClick={() => setAiOpen(true)}
+        >
+          <span className="ai-floating-launch__avatar" aria-hidden="true">
+            <img src="/body-feet-nurse.png" alt="" />
+            <i />
+          </span>
+          <span className="ai-floating-launch__copy">
+            <strong>La IA de Body Feet</strong>
+            <small>¿En que puedo ayudarte?</small>
+          </span>
+          <Sparkles aria-hidden="true" />
+        </button>
+      ) : null}
+      <BodyFeetAiAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   );
 }

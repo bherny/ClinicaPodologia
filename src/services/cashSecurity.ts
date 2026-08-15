@@ -9,6 +9,10 @@ export type MusaCashSecurityStatus = {
   autorizado_hasta: string | null;
   bloqueado_hasta: string | null;
   intentos_restantes: number;
+  ocupada_por_otro: boolean;
+  ocupada_por: string | null;
+  ocupada_desde: string | null;
+  ultimo_latido: string | null;
 };
 
 export type MusaCashPinResult = {
@@ -26,8 +30,14 @@ export type MusaCashPinChangeResult = {
 
 function securityError(error: { message?: string } | null, fallback: string) {
   const message = error?.message ?? "";
-  if (message.includes("schema cache") || message.includes("get_musa_cash") || message.includes("verify_musa_cash") || message.includes("change_musa_cash")) {
-    return new Error("Falta aplicar la migracion 202608140003_musa_cash_security.sql en Supabase.");
+  if (
+    message.includes("schema cache")
+    || message.includes("get_musa_cash")
+    || message.includes("verify_musa_cash")
+    || message.includes("change_musa_cash")
+    || message.includes("heartbeat_musa_cash")
+  ) {
+    return new Error("Falta aplicar la migracion 202608150001_realtime_cash_and_patient_portal.sql en Supabase.");
   }
   return new Error(message || fallback);
 }
@@ -38,7 +48,7 @@ function firstRow<T>(data: T[] | T | null): T | null {
 }
 
 export async function getMusaCashSecurityStatus() {
-  const { data, error } = await db.rpc("get_musa_cash_security_status");
+  const { data, error } = await db.rpc("get_musa_cash_exclusive_status");
   if (error) throw securityError(error, "No se pudo comprobar la seguridad de Caja Musa.");
   const status = firstRow<MusaCashSecurityStatus>(data);
   if (!status) throw new Error("No se recibio el estado de seguridad de Caja Musa.");
@@ -51,6 +61,12 @@ export async function verifyMusaCashPin(pin: string) {
   const result = firstRow<MusaCashPinResult>(data);
   if (!result) throw new Error("No se recibio el resultado de validacion del PIN.");
   return result;
+}
+
+export async function heartbeatMusaCashAccess() {
+  const { data, error } = await db.rpc("heartbeat_musa_cash_access");
+  if (error) throw securityError(error, "No se pudo mantener activa Caja Musa.");
+  return Boolean(data);
 }
 
 export async function lockMusaCashAccess() {

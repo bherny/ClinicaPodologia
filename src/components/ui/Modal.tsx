@@ -17,6 +17,7 @@ export function Modal({ title, children, footer, onClose }: ModalProps) {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.classList.add("has-open-modal");
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -31,6 +32,7 @@ export function Modal({ title, children, footer, onClose }: ModalProps) {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      document.body.classList.remove("has-open-modal");
       previousFocus?.focus();
     };
   }, [onClose]);

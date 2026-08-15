@@ -241,6 +241,74 @@ export type Database = {
           intentos_restantes: number;
         }>;
       };
+      get_musa_cash_exclusive_status: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          sede_id: string;
+          configurado: boolean;
+          autorizado: boolean;
+          autorizado_hasta: string | null;
+          bloqueado_hasta: string | null;
+          intentos_restantes: number;
+          ocupada_por_otro: boolean;
+          ocupada_por: string | null;
+          ocupada_desde: string | null;
+          ultimo_latido: string | null;
+        }>;
+      };
+      heartbeat_musa_cash_access: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      get_musa_report_security_status: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          sede_id: string;
+          configurado: boolean;
+          autorizado: boolean;
+          autorizado_hasta: string | null;
+          bloqueado_hasta: string | null;
+          intentos_restantes: number;
+        }>;
+      };
+      verify_musa_report_pin: {
+        Args: { p_pin: string };
+        Returns: Array<{
+          exito: boolean;
+          mensaje: string;
+          autorizado_hasta: string | null;
+          bloqueado_hasta: string | null;
+          intentos_restantes: number;
+        }>;
+      };
+      lock_musa_report_access: {
+        Args: Record<string, never>;
+        Returns: null;
+      };
+      configure_patient_portal_pin: {
+        Args: { p_patient_id: string; p_pin: string };
+        Returns: Json;
+      };
+      get_patient_portal_access_status: {
+        Args: { p_patient_id: string };
+        Returns: Json;
+      };
+      revoke_patient_portal_access: {
+        Args: { p_patient_id: string };
+        Returns: null;
+      };
+      login_patient_portal: {
+        Args: { p_phone: string; p_pin: string };
+        Returns: Json;
+      };
+      get_patient_portal_by_token: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      record_patient_history_download_by_token: {
+        Args: { p_token: string; p_history_id: string; p_file_name?: string | null };
+        Returns: null;
+      };
       verify_musa_cash_pin: {
         Args: { p_pin: string };
         Returns: Array<{
@@ -258,7 +326,8 @@ export type Database = {
       change_musa_cash_pin: {
         Args: { p_current_pin: string; p_new_pin: string };
         Returns: Array<{ exito: boolean; mensaje: string }>;
-      };      soft_delete_professional: {
+      };
+      soft_delete_professional: {
         Args: { p_professional_id: string };
         Returns: null;
       };

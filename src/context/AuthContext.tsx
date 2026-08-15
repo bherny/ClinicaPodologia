@@ -67,13 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mounted) setLoading(false);
     }
 
-    init();
+    void init();
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
       setSession(nextSession);
-      loadProfile(nextSession);
+      setLoading(true);
+      void loadProfile(nextSession).finally(() => {
+        if (mounted) setLoading(false);
+      });
     });
 
     return () => {
@@ -106,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       const message = error.message.toLowerCase();
       if (message.includes("invalid login credentials")) {
-        throw new Error("Correo o contraseña incorrectos.");
+        throw new Error("Correo o contrasena incorrectos.");
       }
       if (message.includes("email not confirmed")) {
         throw new Error("Confirma el correo de esta cuenta antes de ingresar.");
@@ -114,20 +118,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (message.includes("rate limit")) {
         throw new Error("Hubo demasiados intentos. Espera un momento y vuelve a intentarlo.");
       }
-      throw new Error("No se pudo iniciar sesión. Revisa tu conexión e inténtalo nuevamente.");
+      throw new Error("No se pudo iniciar sesion. Revisa tu conexion e intentalo nuevamente.");
     }
     sessionStorage.removeItem("bodyfeet:session-expired");
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await lockMusaCashAccess();
-    } catch {
-      // El cierre de sesion debe continuar aunque la migracion aun no este aplicada.
+    if (profile) {
+      try {
+        await lockMusaCashAccess();
+      } catch {
+        // El cierre de sesion debe continuar aunque la migracion aun no este aplicada.
+      }
     }
     await supabase.auth.signOut();
     setProfile(null);
-  }, []);
+  }, [profile]);
 
   const refreshProfile = useCallback(async () => {
     await loadProfile(session);

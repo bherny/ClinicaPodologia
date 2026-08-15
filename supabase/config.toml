@@ -1,0 +1,4 @@
+project_id = "body-feet-system"
+
+[functions.body-feet-ai]
+verify_jwt = true

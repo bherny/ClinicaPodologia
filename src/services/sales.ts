@@ -41,14 +41,32 @@ export type SaleFormValues = z.infer<typeof saleSchema>;
 const saleSelect =
   "*, paciente:pacientes(id,nombres,apellidos,telefono,dni,direccion), sede:sedes(id,nombre,direccion,telefono), items:venta_items(*), comprobante:comprobantes(*)";
 
+const SALES_PAGE_SIZE = 1000;
+
 export async function listSales(branchId: string, from?: string, to?: string) {
-  let query = db.from("ventas").select(saleSelect).eq("eliminado", false).order("fecha", { ascending: false }).limit(300);
-  if (branchId !== "all") query = query.eq("sede_id", branchId);
-  if (from) query = query.gte("fecha", `${from}T00:00:00`);
-  if (to) query = query.lte("fecha", `${to}T23:59:59`);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message ?? "No se pudieron cargar las ventas.");
-  return (data ?? []).map((sale: VentaDetalle & { comprobante?: unknown }) => ({
+  const rows: Array<VentaDetalle & { comprobante?: unknown }> = [];
+  let rangeFrom = 0;
+
+  while (true) {
+    let query = db
+      .from("ventas")
+      .select(saleSelect)
+      .eq("eliminado", false)
+      .order("fecha", { ascending: false })
+      .range(rangeFrom, rangeFrom + SALES_PAGE_SIZE - 1);
+    if (branchId !== "all") query = query.eq("sede_id", branchId);
+    if (from) query = query.gte("fecha", `${from}T00:00:00`);
+    if (to) query = query.lte("fecha", `${to}T23:59:59`);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message ?? "No se pudieron cargar las ventas.");
+    const page = (data ?? []) as Array<VentaDetalle & { comprobante?: unknown }>;
+    rows.push(...page);
+    if (page.length < SALES_PAGE_SIZE) break;
+    rangeFrom += SALES_PAGE_SIZE;
+  }
+
+  return rows.map((sale) => ({
     ...sale,
     comprobante: Array.isArray(sale.comprobante) ? sale.comprobante[0] ?? null : sale.comprobante ?? null
   })) as VentaDetalle[];
@@ -97,4 +115,17 @@ export async function updateSale(id: string, values: SaleFormValues) {
 export async function softDeleteSale(id: string) {
   const { error } = await db.rpc("soft_delete_sale", { p_sale_id: id });
   if (error) throw saleActionError(error, "No se pudo anular la venta.");
+}
+
+export function subscribeToSalesChanges(onChange: () => void) {
+  const channel = supabase
+    .channel(`bodyfeet-sales-live-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "ventas" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "venta_items" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "comprobantes" }, onChange)
+    .subscribe();
+
+  return () => {
+    void supabase.removeChannel(channel);
+  };
 }

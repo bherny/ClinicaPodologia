@@ -12,7 +12,7 @@ import { TableSkeleton } from "../components/ui/Skeleton";
 import { AppointmentStatusBadge, ReminderStatusBadge } from "../components/ui/StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
-import { toReadableDate, toReadableTime } from "../lib/date";
+import { tomorrowISO, toReadableDate, toReadableTime } from "../lib/date";
 import { fullName } from "../lib/format";
 import { buildReminderMessage, buildWhatsAppUrl, hasValidWhatsAppPhone } from "../lib/whatsapp";
 import { queryClient } from "../lib/queryClient";
@@ -54,7 +54,7 @@ export function RemindersPage() {
   );
 
   const tomorrowWithoutReminder = filterReminderBucket(remindersQuery.data ?? [], "sin_recordatorio").filter(
-    (appointment) => appointment.fecha === new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    (appointment) => appointment.fecha === tomorrowISO()
   );
 
   return (
