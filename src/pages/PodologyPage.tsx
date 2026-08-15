@@ -1,8 +1,8 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ClipboardPlus, Printer, Sparkles, Trash2 } from "lucide-react";
+import { ClipboardPlus, Download, FileText, MessageCircle, Printer, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -14,10 +14,13 @@ import { useBranch } from "../context/BranchContext";
 import { todayISO, toReadableDate } from "../lib/date";
 import { fullName } from "../lib/format";
 import { printPodologyRecord } from "../lib/print";
+import { downloadPodologyPdf } from "../lib/podologyPdf";
+import { buildPodologyShareMessage, buildWhatsAppUrl, hasValidWhatsAppPhone } from "../lib/whatsapp";
 import { queryClient } from "../lib/queryClient";
 import { listProfessionals } from "../services/catalog";
 import { listPatients } from "../services/patients";
-import { createPodologyRecord, listPodologyAppointments, listPodologyRecords, podologyRecordSchema, softDeletePodologyRecord, type PodologyRecordFormValues } from "../services/podology";
+import { createPodologyRecord, listPodologyAppointments, listPodologyRecords, podologyRecordSchema, recordPodologyDocumentAction, softDeletePodologyRecord, type PodologyRecordFormValues } from "../services/podology";
+import type { ExpedientePodologiaDetalle } from "../types/domain";
 
 const DISEASES = [["diabetes", "Diabetes"], ["hta", "HTA"], ["artritis", "Artritis"], ["artrosis", "Artrosis"], ["osteoporosis", "Osteoporosis"]] as const;
 const TREATMENTS = [["asepsia", "Asepsia"], ["fomentacion", "Fomentacion"], ["limpieza_surcos", "Limpieza de surcos"], ["onicotomia", "Onicotomia"], ["despiculizacion", "Despiculizacion"], ["resecado", "Resecado"], ["helotomia", "Helotomia"], ["desbastado", "Desbastado"], ["pulido", "Pulido"], ["asepsia_final", "Asepsia final"]] as const;
@@ -25,15 +28,46 @@ const TREATMENT_LABELS = Object.fromEntries(TREATMENTS) as Record<string, string
 const NAIL_SHAPES = [["curva", "Curva"], ["recta", "Recta"], ["plana", "Plana"], ["cuchara", "Cuchara"], ["cucharada", "Cucharada"]] as const;
 const SKIN_PROBLEMS = [["psoriasis", "Psoriasis"], ["manchas", "Manchas"], ["tina", "Tina"], ["vitiligo", "Vitiligo"], ["verrugas", "Verrugas"], ["ampollas", "Ampollas"], ["cicatrices", "Cicatrices"], ["dermatitis", "Dermatitis"]] as const;
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function PodologyPage() {
   const { selectedBranchId, branches } = useBranch();
   const [open, setOpen] = useState(false);
+  const [sharing, setSharing] = useState<ExpedientePodologiaDetalle | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
   const recordsQuery = useQuery({ queryKey: ["podology-records", selectedBranchId], queryFn: () => listPodologyRecords(selectedBranchId) });
   const rows = recordsQuery.data ?? [];
   const deleteMutation = useMutation({
     mutationFn: softDeletePodologyRecord,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["podology-records"] })
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ["podology-records"] });
+    },
+    onError: (nextError) => setActionError(getErrorMessage(nextError, "No se pudo eliminar el expediente"))
   });
+
+  const handleDownload = async (record: ExpedientePodologiaDetalle) => {
+    setActionError(null);
+    setActionMessage(null);
+    setDocumentBusyId(record.id);
+    try {
+      const fileName = await downloadPodologyPdf(record);
+      try {
+        await recordPodologyDocumentAction(record.id, "descarga_pdf", { file_name: fileName });
+        setActionMessage("PDF podologico descargado y registrado en auditoria.");
+      } catch (auditError) {
+        setActionError(`El PDF se descargo correctamente, pero no se registro en auditoria. ${getErrorMessage(auditError, "")}`);
+      }
+    } catch (error) {
+      setActionError(getErrorMessage(error, "No se pudo generar el PDF del expediente podologico."));
+    } finally {
+      setDocumentBusyId(null);
+    }
+  };
 
   return (
     <main className="page">
@@ -43,8 +77,9 @@ export function PodologyPage() {
         description="Evaluacion vascular, ungueal, cutanea y anatomica vinculada al historial permanente del paciente."
         action={<Button type="button" variant="primary" onClick={() => setOpen(true)}><ClipboardPlus /> Nueva evaluacion</Button>}
       />
-      {recordsQuery.error ? <div className="alert">{recordsQuery.error instanceof Error ? recordsQuery.error.message : "No se pudieron cargar los expedientes"}</div> : null}
-      {deleteMutation.error ? <div className="alert">{deleteMutation.error instanceof Error ? deleteMutation.error.message : "No se pudo eliminar el expediente"}</div> : null}
+      {recordsQuery.error ? <div className="alert">{getErrorMessage(recordsQuery.error, "No se pudieron cargar los expedientes")}</div> : null}
+      {actionError ? <div className="alert" style={{ marginBottom: 14 }}>{actionError}</div> : null}
+      {actionMessage ? <div className="alert alert--info" style={{ marginBottom: 14 }}>{actionMessage}</div> : null}
       <Card>
         {recordsQuery.isLoading ? <TableSkeleton /> : rows.length ? (
           <div className="table-wrap"><table className="table"><thead><tr><th>Fecha</th><th>Paciente</th><th>Motivo</th><th>Hallazgos</th><th>Profesional</th><th>Sede</th><th>Acciones</th></tr></thead>
@@ -55,15 +90,89 @@ export function PodologyPage() {
               <td data-label="Hallazgos">{[...record.enfermedades, ...record.problemas_piel].slice(0, 3).join(", ") || "Sin alertas registradas"}</td>
               <td data-label="Profesional">{fullName(record.profesional)}</td>
               <td data-label="Sede">{record.sede?.nombre}</td>
-              <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Imprimir expediente" title="Imprimir expediente" onClick={() => printPodologyRecord(record)}><Printer /></Button><Button type="button" variant="danger" aria-label="Eliminar expediente" title="Eliminar expediente" disabled={deleteMutation.isPending} onClick={() => { if (confirm("¿Eliminar este expediente podologico? El registro se ocultara y la accion quedara en auditoria.")) deleteMutation.mutate(record.id); }}><Trash2 /></Button></div></td>
+              <td data-label="Acciones">
+                <div className="podology-actions">
+                  <Button type="button" aria-label="Imprimir expediente" title="Imprimir expediente" onClick={() => printPodologyRecord(record)}><Printer /></Button>
+                  <Button type="button" aria-label="Descargar expediente en PDF" title="Descargar PDF" disabled={documentBusyId === record.id} onClick={() => handleDownload(record)}><Download /></Button>
+                  <Button type="button" variant="whatsapp" aria-label="Enviar expediente por WhatsApp" title="Preparar para WhatsApp" onClick={() => setSharing(record)}><MessageCircle /></Button>
+                  <Button type="button" variant="danger" aria-label="Eliminar expediente" title="Eliminar expediente" disabled={deleteMutation.isPending} onClick={() => { if (confirm("Eliminar este expediente podologico? El registro se ocultara y la accion quedara en auditoria.")) deleteMutation.mutate(record.id); }}><Trash2 /></Button>
+                </div>
+              </td>
             </tr>)}</tbody></table></div>
         ) : <EmptyState title="Aun no hay evaluaciones podologicas" description="La primera evaluacion quedara enlazada al historial del paciente." />}
       </Card>
       {open ? <PodologyAppointmentModal defaultBranchId={selectedBranchId !== "all" ? selectedBranchId : branches[0]?.id ?? ""} onClose={() => setOpen(false)} /> : null}
+      {sharing ? <PodologyShareModal record={sharing} onClose={() => setSharing(null)} /> : null}
     </main>
   );
 }
 
+function PodologyShareModal({ record, onClose }: { record: ExpedientePodologiaDetalle; onClose: () => void }) {
+  const patientName = fullName(record.paciente);
+  const phone = record.paciente?.telefono ?? "";
+  const [busy, setBusy] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canOpenWhatsApp = hasValidWhatsAppPhone(phone);
+
+  const continueToWhatsApp = async () => {
+    setBusy(true);
+    setError(null);
+    const whatsappWindow = window.open("", "_blank");
+    if (whatsappWindow) whatsappWindow.opener = null;
+
+    try {
+      const fileName = await downloadPodologyPdf(record);
+      const message = buildPodologyShareMessage(patientName);
+      try {
+        await recordPodologyDocumentAction(record.id, "intento_compartir_whatsapp", {
+          file_name: fileName,
+          phone_last_digits: phone.replace(/\D/g, "").slice(-4)
+        });
+      } catch (auditError) {
+        setError(`WhatsApp se preparo, pero la auditoria no pudo registrarse. ${getErrorMessage(auditError, "")}`);
+      }
+
+      if (!whatsappWindow) throw new Error("El navegador bloqueo la nueva ventana. Permite ventanas emergentes e intentalo nuevamente.");
+      whatsappWindow.location.href = buildWhatsAppUrl(phone, message);
+      setCompleted(true);
+    } catch (nextError) {
+      whatsappWindow?.close();
+      setError(getErrorMessage(nextError, "No se pudo preparar el expediente para WhatsApp."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Enviar expediente podologico"
+      onClose={onClose}
+      footer={
+        <>
+          <Button type="button" onClick={onClose}>{completed ? "Cerrar" : "Cancelar"}</Button>
+          {!completed ? <Button type="button" variant="whatsapp" disabled={busy || !canOpenWhatsApp} onClick={continueToWhatsApp}><MessageCircle /> {busy ? "Preparando..." : "Continuar a WhatsApp"}</Button> : null}
+        </>
+      }
+    >
+      <div className="stack">
+        <section className="share-document-summary">
+          <FileText />
+          <div><span>Paciente</span><strong>{patientName}</strong></div>
+          <div><span>Telefono</span><strong>{phone || "No registrado"}</strong></div>
+          <div><span>Documento</span><strong>Expediente podologico</strong></div>
+        </section>
+        {!canOpenWhatsApp ? <div className="alert">El paciente no tiene un numero celular peruano valido para WhatsApp.</div> : null}
+        {error ? <div className="alert">{error}</div> : null}
+        <div className="alert alert--info">
+          {completed
+            ? "WhatsApp se abrio con el mensaje preparado. El PDF ya fue descargado: adjuntalo manualmente antes de enviar."
+            : "El sistema descargara el expediente y abrira la conversacion correcta. WhatsApp Web no permite adjuntar el PDF automaticamente."}
+        </div>
+      </div>
+    </Modal>
+  );
+}
 function CheckboxGroup({ legend, options, registerName, register }: { legend: string; options: readonly (readonly [string, string])[]; registerName: "enfermedades" | "tratamientos" | "formas_unas" | "problemas_piel"; register: ReturnType<typeof useForm<PodologyRecordFormValues>>["register"] }) {
   return <fieldset className="clinical-options"><legend>{legend}</legend><div className="check-grid">{options.map(([value, label]) => <label className="check-option" key={value}><input type="checkbox" value={value} {...register(registerName)} /><span>{label}</span></label>)}</div></fieldset>;
 }
@@ -123,6 +232,7 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
     defaultValues: { paciente_id: "", cita_id: "", sede_id: defaultBranchId, profesional_id: null, fecha: todayISO(), motivo_consulta: "", pulso_pedio_izquierdo: null, pulso_pedio_derecho: null, pulso_tibial_izquierdo: null, pulso_tibial_derecho: null, temperatura: null, tipo_piel: null, enfermedades: [], otra_enfermedad: "", tratamientos: [], otro_tratamiento: "", formas_unas: [], alteraciones_unas: "", alergias: "", problemas_piel: [], otro_problema_piel: "", tipo_pie: null, mapa_anatomico_notas: "", observaciones: "" }
   });
   const { register, control, handleSubmit, setValue, formState: { errors } } = form;
+
   const patientId = useWatch({ control, name: "paciente_id" });
   const appointmentId = useWatch({ control, name: "cita_id" });
   const watchedDiseases = useWatch({ control, name: "enfermedades" });
@@ -184,16 +294,13 @@ function PodologyAppointmentModal({ defaultBranchId, onClose }: { defaultBranchI
         <CheckboxGroup legend="Enfermedades que padece" options={DISEASES} registerName="enfermedades" register={register} />
         <CheckboxGroup legend="Forma de unas" options={NAIL_SHAPES} registerName="formas_unas" register={register} />
         <CheckboxGroup legend="Problemas en la piel" options={SKIN_PROBLEMS} registerName="problemas_piel" register={register} />
-        <Field label="Alteraciones de unas"><Textarea {...register("alteraciones_unas")} /></Field>
-        <Field label="Alergias"><Textarea {...register("alergias")} /></Field><Field label="Tipo de pie"><Select {...register("tipo_pie")}><option value="">No evaluado</option><option value="romano">Romano</option><option value="egipcio">Egipcio</option><option value="griego">Griego</option><option value="cuadrado">Cuadrado</option></Select></Field>
+        <div className="field"><label>Alteraciones de unas</label><Textarea {...register("alteraciones_unas")} /></div>
+        <div className="field"><label>Alergias</label><Textarea {...register("alergias")} /></div><Field label="Tipo de pie"><Select {...register("tipo_pie")}><option value="">No evaluado</option><option value="romano">Romano</option><option value="egipcio">Egipcio</option><option value="griego">Griego</option><option value="cuadrado">Cuadrado</option></Select></Field>
       </div></section>
 
       <section className="clinical-assist"><div className="clinical-assist__heading"><div><Sparkles /><span><strong>Apoyo para el procedimiento</strong><small>Sugerencia basada en hallazgos; requiere confirmacion profesional.</small></span></div><Button type="button" onClick={() => setValue("tratamientos", support.treatments)}>Aplicar sugerencia</Button></div><div className="clinical-assist__treatments">{support.treatments.map((item) => <span key={item}>{TREATMENT_LABELS[item]}</span>)}</div>{support.alerts.map((alert) => <p className="clinical-assist__alert" key={alert}>{alert}</p>)}</section>
 
-      <section className="form-section"><h3>Procedimiento confirmado</h3><div className="form-grid"><CheckboxGroup legend="Tratamiento realizado" options={TREATMENTS} registerName="tratamientos" register={register} /><Field label="Otro tratamiento o derivacion"><Textarea {...register("otro_tratamiento")} /></Field><Field label="Mapa anatomico - hallazgos"><Textarea {...register("mapa_anatomico_notas")} placeholder="Describe pie, lateralidad y ubicacion precisa" /></Field><Field label="Observaciones"><Textarea {...register("observaciones")} /></Field></div></section>
+      <section className="form-section"><h3>Procedimiento confirmado</h3><div className="form-grid"><CheckboxGroup legend="Tratamiento realizado" options={TREATMENTS} registerName="tratamientos" register={register} /><div className="field"><label>Otro tratamiento o derivacion</label><Textarea {...register("otro_tratamiento")} /></div><div className="field"><label>Mapa anatomico - hallazgos</label><Textarea {...register("mapa_anatomico_notas")} placeholder="Describe pie, lateralidad y ubicacion precisa" /></div><div className="field"><label>Observaciones</label><Textarea {...register("observaciones")} /></div></div></section>
     </form>
   </Modal>;
 }
-
-
-

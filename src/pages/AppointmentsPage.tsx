@@ -253,6 +253,7 @@ function ClinicalAttentionModal({ appointment, onClose }: { appointment: CitaDet
     }
   });
 
+
   const mutation = useMutation({
     mutationFn: async (values: ClinicalHistoryFormValues) => {
       await createClinicalHistory({
@@ -318,20 +319,24 @@ function ClinicalAttentionModal({ appointment, onClose }: { appointment: CitaDet
         <div className="field span-2">
           <label>Diagnostico</label>
           <Textarea {...register("diagnostico")} />
+
           {errors.diagnostico ? <span className="field-error">{errors.diagnostico.message}</span> : null}
         </div>
         <div className="field span-2">
           <label>Tratamiento realizado</label>
           <Textarea {...register("tratamiento_realizado")} />
+
           {errors.tratamiento_realizado ? <span className="field-error">{errors.tratamiento_realizado.message}</span> : null}
         </div>
         <div className="field span-2">
           <label>Evolucion</label>
           <Textarea {...register("evolucion")} />
+
         </div>
         <div className="field span-2">
           <label>Recomendaciones</label>
           <Textarea {...register("recomendaciones")} />
+
         </div>
       </form>
     </Modal>
@@ -390,6 +395,7 @@ function AppointmentModal({
       creado_por: appointment?.creado_por ?? profile?.id ?? null
     }
   });
+
 
   const serviceId = watch("servicio_id");
   const startTime = watch("hora_inicio");
@@ -567,14 +573,17 @@ function AppointmentModal({
         <div className="field span-2">
           <label>Diagnostico</label>
           <Textarea {...register("diagnostico")} />
+
         </div>
         <div className="field span-2">
           <label>Tratamiento previsto</label>
           <Textarea {...register("tratamiento")} />
+
         </div>
         <div className="field span-2">
           <label>Observaciones</label>
           <Textarea {...register("observaciones")} />
+
         </div>
       </form>
     </Modal>

@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { supabase } from "../lib/supabase";
 import type { CitaDetalle, ExpedientePodologiaDetalle } from "../types/domain";
 
@@ -116,6 +116,18 @@ export async function softDeletePodologyRecord(id: string) {
   if (verificationError) throw new Error(verificationError.message ?? "No se pudo verificar la eliminacion del expediente.");
   if (remainingRecord) throw new Error("Supabase no permitio eliminar el expediente. Aplica la migracion pendiente e intenta nuevamente.");
 }
-
-
-
+export async function recordPodologyDocumentAction(
+  recordId: string,
+  action: "descarga_pdf" | "intento_compartir_whatsapp",
+  metadata: Record<string, string | null> = {}
+) {
+  const { error } = await db.rpc("record_podology_document_action", {
+    p_record_id: recordId,
+    p_action: action,
+    p_metadata: metadata
+  });
+  if (/record_podology_document_action|schema cache|PGRST202/i.test(error?.message ?? "")) {
+    throw new Error("Aplica la migracion 202608140004_podology_documents_and_branch_theme.sql en Supabase para habilitar la auditoria del documento.");
+  }
+  if (error) throw new Error(error.message ?? "No se pudo registrar la accion del expediente podologico.");
+}

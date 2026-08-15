@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Banknote, Edit, FilePlus2, Plus, Printer, Trash2 } from "lucide-react";
+import { Banknote, Edit, FilePlus2, LockKeyhole, Plus, Printer, ShieldAlert, Trash2 } from "lucide-react";
+import { MusaCashAccessGate } from "../components/sales/MusaCashAccessGate";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -11,11 +12,13 @@ import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/ui/PageHeader";
 import { TableSkeleton } from "../components/ui/Skeleton";
+import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
 import { toReadableDate } from "../lib/date";
 import { fullName } from "../lib/format";
 import { printSaleReceipt } from "../lib/print";
 import { queryClient } from "../lib/queryClient";
+import { getMusaCashSecurityStatus, lockMusaCashAccess } from "../services/cashSecurity";
 import { listServices } from "../services/catalog";
 import { listPatients } from "../services/patients";
 import { createSale, listSales, saleSchema, softDeleteSale, updateSale, type SaleFormValues } from "../services/sales";
@@ -25,7 +28,8 @@ const PAYMENT_LABELS: Record<string, string> = { efectivo: "Efectivo", yape: "Ya
 const money = (value: number) => new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(value);
 
 export function SalesPage() {
-  const { selectedBranchId, branches } = useBranch();
+  const { profile } = useAuth();
+  const { selectedBranchId, setSelectedBranchId, branches } = useBranch();
   const [open, setOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<VentaDetalle | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -33,20 +37,107 @@ export function SalesPage() {
   const [to, setTo] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
-  const salesQuery = useQuery({ queryKey: ["sales", selectedBranchId, from, to], queryFn: () => listSales(selectedBranchId, from, to) });
+  const musaBranch = branches.find((branch) => branch.nombre.trim().toLocaleLowerCase("es-PE") === "musa");
+  const isMusaSelected = selectedBranchId === musaBranch?.id;
+  const shouldCheckMusa = Boolean(isMusaSelected || (selectedBranchId === "all" && profile?.rol === "administrador"));
+  const musaSecurityQuery = useQuery({
+    queryKey: ["musa-cash-security", profile?.id],
+    queryFn: getMusaCashSecurityStatus,
+    enabled: Boolean(musaBranch && shouldCheckMusa),
+    retry: false,
+    refetchInterval: 30_000
+  });
+  const musaAuthorized = musaSecurityQuery.data?.autorizado ?? false;
+  const salesQuery = useQuery({
+    queryKey: ["sales", selectedBranchId, from, to, musaAuthorized],
+    queryFn: () => listSales(selectedBranchId, from, to),
+    enabled: !shouldCheckMusa || (Boolean(musaSecurityQuery.data) && (!isMusaSelected || musaAuthorized))
+  });
   const rows = useMemo(() => salesQuery.data ?? [], [salesQuery.data]);
-  const totals = useMemo(() => ({ total: rows.filter((sale) => sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0), operations: rows.length, cash: rows.filter((sale) => sale.metodo_pago === "efectivo" && sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0), digital: rows.filter((sale) => ["yape", "plin", "tarjeta", "transferencia"].includes(sale.metodo_pago) && sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0) }), [rows]);
-  const deleteMutation = useMutation({ mutationFn: softDeleteSale, onSuccess: () => { setActionError(null); queryClient.invalidateQueries({ queryKey: ["sales"] }); }, onError: (nextError) => setActionError(nextError instanceof Error ? nextError.message : "No se pudo anular la venta") });
+  const totals = useMemo(() => ({
+    total: rows.filter((sale) => sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0),
+    operations: rows.length,
+    cash: rows.filter((sale) => sale.metodo_pago === "efectivo" && sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0),
+    digital: rows.filter((sale) => ["yape", "plin", "tarjeta", "transferencia"].includes(sale.metodo_pago) && sale.estado === "pagada").reduce((sum, sale) => sum + Number(sale.total), 0)
+  }), [rows]);
+  const deleteMutation = useMutation({
+    mutationFn: softDeleteSale,
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+    },
+    onError: (nextError) => setActionError(nextError instanceof Error ? nextError.message : "No se pudo anular la venta")
+  });
+  const lockMutation = useMutation({
+    mutationFn: lockMusaCashAccess,
+    onSuccess: () => {
+      setOpen(false);
+      setEditingSale(null);
+      queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+    },
+    onError: (nextError) => setActionError(nextError instanceof Error ? nextError.message : "No se pudo bloquear Caja Musa")
+  });
 
   useEffect(() => {
     if (!(location.state as { openNewSale?: boolean } | null)?.openNewSale) return;
+    if (isMusaSelected && !musaAuthorized) return;
     setEditingSale(null);
     setOpen(true);
     navigate(location.pathname, { replace: true, state: null });
-  }, [location.pathname, location.state, navigate]);
+  }, [isMusaSelected, location.pathname, location.state, musaAuthorized, navigate]);
+
+  const lockedMusaId = musaBranch && !musaAuthorized ? musaBranch.id : null;
+  const defaultSaleBranchId = selectedBranchId !== "all"
+    ? selectedBranchId
+    : branches.find((branch) => branch.id !== lockedMusaId)?.id ?? "";
+  const pageAction = isMusaSelected && !musaAuthorized ? null : (
+    <div className="inline">
+      {musaAuthorized && shouldCheckMusa ? (
+        <Button type="button" onClick={() => lockMutation.mutate()} disabled={lockMutation.isPending}>
+          <LockKeyhole /> {lockMutation.isPending ? "Bloqueando..." : "Bloquear Caja Musa"}
+        </Button>
+      ) : null}
+      <Button type="button" variant="primary" onClick={() => { setEditingSale(null); setOpen(true); }}>
+        <FilePlus2 /> Nueva venta
+      </Button>
+    </div>
+  );
+
+  if (shouldCheckMusa && musaSecurityQuery.isLoading) {
+    return <main className="page"><PageHeader eyebrow="Caja y contabilidad" title="Caja y ventas de Musa" description="Verificando autorizacion financiera." /><TableSkeleton rows={4} /></main>;
+  }
+
+  if (shouldCheckMusa && musaSecurityQuery.error) {
+    return <main className="page"><PageHeader eyebrow="Caja y contabilidad" title="Caja y ventas" description="Informacion financiera protegida por sede." /><div className="alert">{musaSecurityQuery.error instanceof Error ? musaSecurityQuery.error.message : "No se pudo verificar el acceso a Caja Musa."}</div></main>;
+  }
+
+  if (isMusaSelected && musaSecurityQuery.data && !musaAuthorized) {
+    return (
+      <main className="page">
+        <PageHeader eyebrow="Caja y contabilidad" title="Caja y ventas de Musa" description="Informacion financiera protegida por sede." />
+        <MusaCashAccessGate
+          status={musaSecurityQuery.data}
+          isAdministrator={profile?.rol === "administrador"}
+          onUnlocked={() => {
+            queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+            queryClient.invalidateQueries({ queryKey: ["sales"] });
+          }}
+          onConfigure={() => navigate("/administracion?seccion=seguridad")}
+        />
+      </main>
+    );
+  }
 
   return <main className="page">
-    <PageHeader eyebrow="Caja y contabilidad" title="Registro de ventas" description="Registra cada cobro, conserva su detalle y controla los ingresos por sede y medio de pago." action={<Button type="button" variant="primary" onClick={() => { setEditingSale(null); setOpen(true); }}><FilePlus2 /> Nueva venta</Button>} />
+    <PageHeader eyebrow="Caja y contabilidad" title="Registro de ventas" description="Registra cada cobro, conserva su detalle y controla los ingresos por sede y medio de pago." action={pageAction} />
+    {selectedBranchId === "all" && musaBranch && !musaAuthorized ? (
+      <div className="alert alert--info cash-security-notice">
+        <ShieldAlert />
+        <span>Las ventas de Musa estan protegidas y no se incluyen en este consolidado.</span>
+        <Button type="button" onClick={() => setSelectedBranchId(musaBranch.id)}>Desbloquear Musa</Button>
+      </div>
+    ) : null}
     <div className="grid grid--metrics sales-metrics">
       <Card><div className="metric"><span>Ingresos</span><strong>{money(totals.total)}</strong><small>Ventas pagadas</small></div></Card>
       <Card><div className="metric"><span>Operaciones</span><strong>{totals.operations}</strong><small>En el periodo</small></div></Card>
@@ -57,21 +148,20 @@ export function SalesPage() {
     {salesQuery.error ? <div className="alert">{salesQuery.error instanceof Error ? salesQuery.error.message : "No se pudieron cargar las ventas"}</div> : null}
     {actionError ? <div className="alert">{actionError}</div> : null}
     <Card>
-      {salesQuery.isLoading ? <TableSkeleton /> : rows.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Fecha</th><th>N.° venta</th><th>Cliente</th><th>Detalle</th><th>Pago</th><th>Sede</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{rows.map((sale) => <tr key={sale.id}>
+      {salesQuery.isLoading ? <TableSkeleton /> : rows.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Fecha</th><th>N. venta</th><th>Cliente</th><th>Detalle</th><th>Pago</th><th>Sede</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{rows.map((sale) => <tr key={sale.id}>
         <td data-label="Fecha">{toReadableDate(sale.fecha.slice(0, 10))}</td>
-        <td data-label="N.° venta"><strong>{sale.comprobante ? `${sale.comprobante.serie}-${String(sale.comprobante.numero).padStart(8, "0")}` : sale.id.slice(0, 8).toUpperCase()}</strong></td>
+        <td data-label="N. venta"><strong>{sale.comprobante ? `${sale.comprobante.serie}-${String(sale.comprobante.numero).padStart(8, "0")}` : sale.id.slice(0, 8).toUpperCase()}</strong></td>
         <td data-label="Cliente"><strong>{sale.comprobante?.cliente_nombre ?? fullName(sale.paciente)}</strong><div className="muted">{sale.comprobante?.cliente_numero_documento}</div></td>
         <td data-label="Detalle">{sale.items.map((item) => item.descripcion).join(", ")}</td>
         <td data-label="Pago">{PAYMENT_LABELS[sale.metodo_pago]}{sale.numero_operacion ? <div className="muted">Op. {sale.numero_operacion}</div> : null}</td>
         <td data-label="Sede">{sale.sede?.nombre}</td><td data-label="Total"><strong>{money(Number(sale.total))}</strong></td>
-        <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Imprimir constancia de venta" title="Imprimir constancia" onClick={() => printSaleReceipt(sale)}><Printer /></Button><Button type="button" aria-label="Editar venta" title="Editar venta" onClick={() => { setEditingSale(sale); setOpen(true); }}><Edit /></Button><Button type="button" variant="danger" aria-label="Anular venta" title="Anular venta" disabled={deleteMutation.isPending} onClick={() => { if (confirm("¿Anular esta venta? El movimiento quedará conservado en auditoría.")) deleteMutation.mutate(sale.id); }}><Trash2 /></Button></div></td>
-      </tr>)}</tbody></table></div> : <EmptyState title="No hay ventas en el periodo" description="Cada cobro registrado aparecerá aquí con su detalle y medio de pago." />}
+        <td data-label="Acciones"><div className="inline"><Button type="button" aria-label="Imprimir constancia de venta" title="Imprimir constancia" onClick={() => printSaleReceipt(sale)}><Printer /></Button><Button type="button" aria-label="Editar venta" title="Editar venta" onClick={() => { setEditingSale(sale); setOpen(true); }}><Edit /></Button><Button type="button" variant="danger" aria-label="Anular venta" title="Anular venta" disabled={deleteMutation.isPending} onClick={() => { if (confirm("Anular esta venta? El movimiento quedara conservado en auditoria.")) deleteMutation.mutate(sale.id); }}><Trash2 /></Button></div></td>
+      </tr>)}</tbody></table></div> : <EmptyState title="No hay ventas en el periodo" description="Cada cobro registrado aparecera aqui con su detalle y medio de pago." />}
     </Card>
-    {open ? <SaleModal sale={editingSale} branches={branches} defaultBranchId={selectedBranchId !== "all" ? selectedBranchId : branches[0]?.id ?? ""} onClose={() => { setOpen(false); setEditingSale(null); }} /> : null}
+    {open ? <SaleModal sale={editingSale} branches={branches} lockedBranchId={lockedMusaId} defaultBranchId={defaultSaleBranchId} onClose={() => { setOpen(false); setEditingSale(null); }} /> : null}
   </main>;
 }
-
-function SaleModal({ sale, branches, defaultBranchId, onClose }: { sale: VentaDetalle | null; branches: Array<{ id: string; nombre: string }>; defaultBranchId: string; onClose: () => void }) {
+function SaleModal({ sale, branches, lockedBranchId, defaultBranchId, onClose }: { sale: VentaDetalle | null; branches: Array<{ id: string; nombre: string }>; lockedBranchId: string | null; defaultBranchId: string; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const patientsQuery = useQuery({ queryKey: ["sale-patients"], queryFn: () => listPatients({ pageSize: 300 }) });
   const servicesQuery = useQuery({ queryKey: ["sale-services"], queryFn: () => listServices() });
@@ -99,7 +189,7 @@ function SaleModal({ sale, branches, defaultBranchId, onClose }: { sale: VentaDe
       {error ? <div className="alert">{error}</div> : null}
       <section className="form-section"><h3>Cliente y cobro</h3><div className="form-grid form-grid--three">
         <Field label="Paciente" error={errors.paciente_id?.message}><Select {...register("paciente_id")}><option value="">Seleccionar paciente</option>{(patientsQuery.data?.data ?? []).map((patient) => <option key={patient.id} value={patient.id}>{fullName(patient)} - {patient.telefono}</option>)}</Select></Field>
-        <Field label="Sede" error={errors.sede_id?.message}>{sale ? <><Input value={sale.sede?.nombre ?? ""} readOnly /><input type="hidden" {...register("sede_id")} /></> : <Select {...register("sede_id")}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.nombre}</option>)}</Select>}</Field>
+        <Field label="Sede" error={errors.sede_id?.message}>{sale ? <><Input value={sale.sede?.nombre ?? ""} readOnly /><input type="hidden" {...register("sede_id")} /></> : <Select {...register("sede_id")}>{branches.map((branch) => <option key={branch.id} value={branch.id} disabled={branch.id === lockedBranchId}>{branch.nombre}{branch.id === lockedBranchId ? " (requiere PIN)" : ""}</option>)}</Select>}</Field>
         <Field label="Medio de pago"><Select {...register("metodo_pago")}>{Object.entries(PAYMENT_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</Select></Field>
         <Field label="Numero de operacion"><Input {...register("numero_operacion")} placeholder="Opcional" /></Field>
       </div></section>

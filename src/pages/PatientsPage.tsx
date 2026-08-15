@@ -248,6 +248,7 @@ function PatientModal({
   });
   const [error, setError] = useState<string | null>(null);
 
+
   const mutation = useMutation({
     mutationFn: (values: PatientFormValues) => (patient ? updatePatient(patient.id, values) : createPatient(values)),
     onSuccess: () => {
@@ -316,6 +317,7 @@ function PatientModal({
         <div className="field span-2">
           <label>Observaciones</label>
           <Textarea {...register("observaciones")} />
+
         </div>
       </form>
     </Modal>

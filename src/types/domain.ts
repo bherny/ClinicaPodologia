@@ -28,6 +28,9 @@ export type Sede = {
   telefono: string | null;
   horario: string | null;
   responsable_sede: string | null;
+  color_sidebar: string | null;
+  color_primario: string | null;
+  color_acento: string | null;
   activo: boolean;
   created_at: string;
 };
@@ -120,6 +123,41 @@ export type HistoriaClinica = {
   updated_at: string;
 };
 
+export type HistoriaClinicaDetalle = HistoriaClinica & {
+  paciente?: Pick<Paciente, "id" | "nombres" | "apellidos" | "dni" | "telefono" | "fecha_nacimiento" | "direccion" | "sexo"> | null;
+  cita?: (Pick<Cita, "id" | "fecha" | "hora_inicio" | "estado" | "diagnostico" | "tratamiento" | "observaciones"> & {
+    servicio?: Pick<Servicio, "id" | "nombre"> | null;
+    expedientes_podologia?: Array<
+      Pick<
+        ExpedientePodologia,
+        | "id"
+        | "motivo_consulta"
+        | "pulso_pedio_izquierdo"
+        | "pulso_pedio_derecho"
+        | "pulso_tibial_izquierdo"
+        | "pulso_tibial_derecho"
+        | "temperatura"
+        | "tipo_piel"
+        | "enfermedades"
+        | "otra_enfermedad"
+        | "tratamientos"
+        | "otro_tratamiento"
+        | "formas_unas"
+        | "alteraciones_unas"
+        | "alergias"
+        | "problemas_piel"
+        | "otro_problema_piel"
+        | "tipo_pie"
+        | "mapa_anatomico_notas"
+        | "observaciones"
+        | "eliminado"
+      >
+    > | null;
+  }) | null;
+  sede?: Pick<Sede, "id" | "nombre" | "direccion" | "telefono"> | null;
+  profesional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad" | "telefono"> | null;
+};
+
 export type Recordatorio = {
   id: string;
   cita_id: string;
@@ -164,9 +202,9 @@ export type Receta = {
 };
 
 export type RecetaDetalle = Receta & {
-  paciente?: Pick<Paciente, "id" | "nombres" | "apellidos" | "telefono" | "dni"> | null;
+  paciente?: Pick<Paciente, "id" | "nombres" | "apellidos" | "telefono" | "dni" | "fecha_nacimiento" | "direccion"> | null;
   sede?: Pick<Sede, "id" | "nombre" | "direccion" | "telefono"> | null;
-  profesional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad"> | null;
+  profesional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad" | "telefono"> | null;
   items: RecetaItem[];
 };
 

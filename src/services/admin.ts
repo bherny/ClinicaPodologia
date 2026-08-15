@@ -104,3 +104,19 @@ export async function listAudit() {
   if (error) throw error;
   return data ?? [];
 }
+export async function updateBranchTheme(
+  id: string,
+  theme: { color_sidebar: string; color_primario: string; color_acento: string }
+) {
+  const { data, error } = await db
+    .from("sedes")
+    .update(theme)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (/color_sidebar|color_primario|color_acento|schema cache/i.test(error?.message ?? "")) {
+    throw new Error("Aplica la migracion 202608140004_podology_documents_and_branch_theme.sql en Supabase para guardar la apariencia por sede.");
+  }
+  if (error) throw new Error(error.message ?? "No se pudo guardar la apariencia de la sede.");
+  return data as Sede;
+}

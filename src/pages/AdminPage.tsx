@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Edit, Plus, Trash2 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Edit, KeyRound, LockKeyhole, Palette, Plus, RotateCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { ROLE_OPTIONS } from "../constants";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -12,7 +13,9 @@ import { TableSkeleton } from "../components/ui/Skeleton";
 import { useAuth } from "../context/AuthContext";
 import { queryClient } from "../lib/queryClient";
 import { fullName, money } from "../lib/format";
-import { deactivateBranch, deactivateService, softDeleteProfessional, upsertBranch, upsertProfessional, upsertService, updateProfileAdmin } from "../services/admin";
+import { createBranchThemeStyle, DEFAULT_BRANCH_THEME, isValidBranchColor, normalizeBranchTheme } from "../lib/branchTheme";
+import { deactivateBranch, deactivateService, softDeleteProfessional, updateBranchTheme, upsertBranch, upsertProfessional, upsertService, updateProfileAdmin } from "../services/admin";
+import { changeMusaCashPin, getMusaCashSecurityStatus, lockMusaCashAccess } from "../services/cashSecurity";
 import {
   listBranches,
   listProfessionalBranchIds,
@@ -27,11 +30,17 @@ import {
 } from "../services/catalog";
 import type { Perfil, Profesional, RolUsuario, Sede, Servicio } from "../types/domain";
 
-type AdminTab = "sedes" | "servicios" | "profesionales" | "usuarios";
+type AdminTab = "sedes" | "servicios" | "profesionales" | "usuarios" | "apariencia" | "seguridad";
 
 export function AdminPage() {
   const { profile } = useAuth();
-  const [tab, setTab] = useState<AdminTab>("sedes");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<AdminTab>(() => {
+    const requested = searchParams.get("seccion");
+    return ["sedes", "servicios", "profesionales", "usuarios", "apariencia", "seguridad"].includes(requested ?? "")
+      ? requested as AdminTab
+      : "sedes";
+  });
   const [branch, setBranch] = useState<Partial<Sede> | null>(null);
   const [service, setService] = useState<Partial<Servicio> | null>(null);
   const [professional, setProfessional] = useState<Partial<Profesional> | null>(null);
@@ -81,7 +90,9 @@ export function AdminPage() {
           ["sedes", "Sedes"],
           ["servicios", "Servicios"],
           ["profesionales", "Profesionales"],
-          ["usuarios", "Usuarios"]
+          ["usuarios", "Usuarios"],
+          ["apariencia", "Apariencia"],
+          ["seguridad", "Seguridad"]
         ].map(([id, label]) => (
           <button key={id} type="button" className={`tab ${tab === id ? "tab--active" : ""}`} onClick={() => setTab(id as AdminTab)}>
             {label}
@@ -180,6 +191,10 @@ export function AdminPage() {
         </AdminSection>
       ) : null}
 
+      {tab === "apariencia" ? <BranchAppearanceAdmin branches={branchesQuery.data ?? []} isLoading={branchesQuery.isLoading} /> : null}
+
+      {tab === "seguridad" ? <MusaCashSecurityAdmin /> : null}
+
       {branch ? <BranchModal branch={branch} onClose={() => setBranch(null)} /> : null}
       {service ? <ServiceModal service={service} branches={branchesQuery.data ?? []} onClose={() => setService(null)} /> : null}
       {professional ? (
@@ -196,6 +211,227 @@ export function AdminPage() {
   );
 }
 
+const BRANCH_THEME_PRESETS = [
+  { name: "Body Feet", color_sidebar: "#0B455C", color_primario: "#19A79C", color_acento: "#5E92DB" },
+  { name: "Cielo", color_sidebar: "#315470", color_primario: "#5E92DB", color_acento: "#99D6E9" },
+  { name: "Lila clinico", color_sidebar: "#3E4D68", color_primario: "#7B67A8", color_acento: "#CAA2DE" }
+] as const;
+
+function BranchAppearanceAdmin({ branches, isLoading }: { branches: Sede[]; isLoading: boolean }) {
+  const [branchId, setBranchId] = useState("");
+  const [theme, setTheme] = useState(() => normalizeBranchTheme(DEFAULT_BRANCH_THEME));
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const selectedBranch = branches.find((branch) => branch.id === branchId);
+
+  useEffect(() => {
+    if (branches.length && !branches.some((branch) => branch.id === branchId)) setBranchId(branches[0].id);
+  }, [branchId, branches]);
+
+  useEffect(() => {
+    if (!selectedBranch) return;
+    setTheme(normalizeBranchTheme(selectedBranch));
+    setMessage(null);
+    setError(null);
+  }, [selectedBranch]);
+
+  const mutation = useMutation({
+    mutationFn: () => updateBranchTheme(branchId, theme),
+    onSuccess: () => {
+      setError(null);
+      setMessage("Apariencia guardada. Se aplicara al seleccionar esta sede.");
+      queryClient.invalidateQueries({ queryKey: ["admin-branches"] });
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+    },
+    onError: (nextError) => {
+      setMessage(null);
+      setError(nextError instanceof Error ? nextError.message : "No se pudo guardar la apariencia.");
+    }
+  });
+
+  const saveTheme = () => {
+    if (!branchId) return;
+    if (![theme.color_sidebar, theme.color_primario, theme.color_acento].every(isValidBranchColor)) {
+      setError("Los tres colores deben usar el formato hexadecimal #RRGGBB.");
+      return;
+    }
+    mutation.mutate();
+  };
+
+  if (isLoading) return <Card title="Identidad visual por sede"><TableSkeleton rows={4} /></Card>;
+  if (!branches.length) return <Card><EmptyState title="No hay sedes disponibles" /></Card>;
+
+  return (
+    <Card title="Identidad visual por sede">
+      <div className="appearance-settings">
+        <section className="appearance-settings__controls">
+          <div className="appearance-settings__intro">
+            <Palette aria-hidden="true" />
+            <div>
+              <h3>Personaliza sin perder legibilidad</h3>
+              <p>Los colores se guardan en Supabase y se aplican cuando un usuario trabaja en esa sede.</p>
+            </div>
+          </div>
+          <Field label="Sede a personalizar">
+            <Select value={branchId} onChange={(event) => setBranchId(event.target.value)}>
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.nombre}</option>)}
+            </Select>
+          </Field>
+          <div className="theme-presets" aria-label="Paletas sugeridas">
+            {BRANCH_THEME_PRESETS.map((preset) => (
+              <button key={preset.name} type="button" onClick={() => setTheme(normalizeBranchTheme(preset))}>
+                <span className="theme-preset__swatches" aria-hidden="true">
+                  <i style={{ background: preset.color_sidebar }} />
+                  <i style={{ background: preset.color_primario }} />
+                  <i style={{ background: preset.color_acento }} />
+                </span>
+                {preset.name}
+              </button>
+            ))}
+          </div>
+          <div className="theme-color-grid">
+            <ThemeColorControl label="Barra lateral" value={theme.color_sidebar} fallback={DEFAULT_BRANCH_THEME.color_sidebar} onChange={(color) => setTheme((current) => ({ ...current, color_sidebar: color }))} />
+            <ThemeColorControl label="Acciones principales" value={theme.color_primario} fallback={DEFAULT_BRANCH_THEME.color_primario} onChange={(color) => setTheme((current) => ({ ...current, color_primario: color }))} />
+            <ThemeColorControl label="Acentos" value={theme.color_acento} fallback={DEFAULT_BRANCH_THEME.color_acento} onChange={(color) => setTheme((current) => ({ ...current, color_acento: color }))} />
+          </div>
+          {error ? <div className="alert" role="alert">{error}</div> : null}
+          {message ? <div className="alert alert--success">{message}</div> : null}
+          <div className="inline">
+            <Button type="button" variant="primary" disabled={mutation.isPending} onClick={saveTheme}><Save /> {mutation.isPending ? "Guardando..." : "Guardar apariencia"}</Button>
+            <Button type="button" onClick={() => setTheme(normalizeBranchTheme(DEFAULT_BRANCH_THEME))}><RotateCcw /> Restablecer</Button>
+          </div>
+        </section>
+        <section className="theme-preview" style={createBranchThemeStyle(theme)} aria-label="Vista previa de apariencia">
+          <div className="theme-preview__sidebar">
+            <span className="theme-preview__logo">BF</span>
+            <span className="theme-preview__nav theme-preview__nav--active">Inicio</span>
+            <span className="theme-preview__nav">Pacientes</span>
+            <span className="theme-preview__nav">Citas</span>
+          </div>
+          <div className="theme-preview__content">
+            <span className="eyebrow">Vista previa</span>
+            <strong>{selectedBranch?.nombre ?? "Sede"}</strong>
+            <div className="theme-preview__metrics"><i /><i /><i /></div>
+            <span className="theme-preview__button">Accion principal</span>
+          </div>
+        </section>
+      </div>
+    </Card>
+  );
+}
+
+function ThemeColorControl({ label, value, fallback, onChange }: { label: string; value: string; fallback: string; onChange: (value: string) => void }) {
+  const pickerValue = isValidBranchColor(value) ? value : fallback;
+  return (
+    <label className="theme-color-control">
+      <span>{label}</span>
+      <span className="theme-color-control__inputs">
+        <input type="color" value={pickerValue} onChange={(event) => onChange(event.target.value.toUpperCase())} aria-label={`Elegir ${label.toLowerCase()}`} />
+        <Input voiceMode="off" value={value} maxLength={7} onChange={(event) => onChange(event.target.value.toUpperCase())} aria-label={`Codigo de color para ${label.toLowerCase()}`} />
+      </span>
+    </label>
+  );
+}
+function MusaCashSecurityAdmin() {
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const statusQuery = useQuery({
+    queryKey: ["musa-cash-security"],
+    queryFn: getMusaCashSecurityStatus,
+    retry: false
+  });
+  const mutation = useMutation({
+    mutationFn: () => changeMusaCashPin(currentPin, newPin),
+    onSuccess: (result) => {
+      if (!result.exito) {
+        setMessage(null);
+        setError(result.mensaje);
+        queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+        return;
+      }
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmation("");
+      setError(null);
+      setMessage(result.mensaje);
+      queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+    },
+    onError: (nextError) => {
+      setMessage(null);
+      setError(nextError instanceof Error ? nextError.message : "No se pudo cambiar el PIN.");
+    }
+  });
+  const lockMutation = useMutation({
+    mutationFn: lockMusaCashAccess,
+    onSuccess: () => {
+      setMessage("Caja Musa quedo bloqueada para tu sesion.");
+      queryClient.invalidateQueries({ queryKey: ["musa-cash-security"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+    },
+    onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "No se pudo bloquear Caja Musa.")
+  });
+
+  const savePin = () => {
+    setMessage(null);
+    setError(null);
+    if (!/^\d{4,8}$/.test(newPin)) {
+      setError("El nuevo PIN debe contener entre 4 y 8 digitos.");
+      return;
+    }
+    if (newPin !== confirmation) {
+      setError("La confirmacion no coincide con el nuevo PIN.");
+      return;
+    }
+    if (statusQuery.data?.configurado && !/^\d{4,8}$/.test(currentPin)) {
+      setError("Ingresa el PIN actual para autorizar el cambio.");
+      return;
+    }
+    mutation.mutate();
+  };
+
+  return (
+    <Card title="Seguridad de Caja Musa">
+      {statusQuery.isLoading ? <TableSkeleton rows={3} /> : statusQuery.error ? (
+        <div className="alert">{statusQuery.error instanceof Error ? statusQuery.error.message : "No se pudo cargar la configuracion de seguridad."}</div>
+      ) : (
+        <div className="security-settings">
+          <section className="security-settings__summary">
+            <div className="security-settings__icon"><ShieldCheck aria-hidden="true" /></div>
+            <div>
+              <h3>Proteccion financiera adicional</h3>
+              <p>El PIN se valida en Supabase, se almacena mediante hash y nunca se muestra en esta aplicacion.</p>
+              <span className={`status-badge ${statusQuery.data?.configurado ? "status-badge--confirmed" : "status-badge--pending"}`}>
+                {statusQuery.data?.configurado ? "PIN configurado" : "Configuracion pendiente"}
+              </span>
+            </div>
+          </section>
+
+          <section className="security-settings__form" aria-label="Configurar PIN de Caja Musa">
+            <h3>{statusQuery.data?.configurado ? "Cambiar PIN" : "Configurar primer PIN"}</h3>
+            {statusQuery.data?.configurado ? (
+              <Field label="PIN actual"><Input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={currentPin} onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, ""))} /></Field>
+            ) : null}
+            <div className="form-grid">
+              <Field label="Nuevo PIN"><Input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={newPin} onChange={(event) => setNewPin(event.target.value.replace(/\D/g, ""))} /></Field>
+              <Field label="Confirmar PIN"><Input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} value={confirmation} onChange={(event) => setConfirmation(event.target.value.replace(/\D/g, ""))} /></Field>
+            </div>
+            <p className="muted">Usa entre 4 y 8 digitos. Al cambiarlo se cierran todas las autorizaciones activas de Musa.</p>
+            {error ? <div className="alert" role="alert">{error}</div> : null}
+            {message ? <div className="alert alert--success">{message}</div> : null}
+            <div className="inline">
+              <Button type="button" variant="primary" disabled={mutation.isPending} onClick={savePin}><KeyRound /> {mutation.isPending ? "Guardando..." : statusQuery.data?.configurado ? "Cambiar PIN" : "Configurar PIN"}</Button>
+              {statusQuery.data?.autorizado ? <Button type="button" disabled={lockMutation.isPending} onClick={() => lockMutation.mutate()}><LockKeyhole /> Bloquear mi acceso</Button> : null}
+            </div>
+          </section>
+        </div>
+      )}
+    </Card>
+  );
+}
 function AdminSection({ title, onCreate, children }: { title: string; onCreate?: () => void; children: React.ReactNode }) {
   return (
     <Card

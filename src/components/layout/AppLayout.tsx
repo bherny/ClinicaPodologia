@@ -1,4 +1,4 @@
-﻿import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -21,11 +21,14 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Field";
+import { VoiceInputButton } from "../ui/VoiceInputButton";
 import { useAuth } from "../../context/AuthContext";
 import { BranchProvider, useBranch } from "../../context/BranchContext";
 import { ROLE_LABELS } from "../../constants";
 import { TableSkeleton } from "../ui/Skeleton";
 import { getDashboardData } from "../../services/dashboard";
+import { createBranchThemeStyle } from "../../lib/branchTheme";
+import { appendDictation } from "../../lib/voice";
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
@@ -87,9 +90,11 @@ function LayoutContent() {
   };
 
   const pendingNotifications = dashboardQuery.data?.pendingReminders.length ?? 0;
+  const activeBranch = selectedBranchId === "all" ? null : branches.find((branch) => branch.id === selectedBranchId) ?? null;
+  const branchThemeStyle = useMemo(() => createBranchThemeStyle(activeBranch), [activeBranch]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={branchThemeStyle}>
       <aside className={`sidebar ${open ? "sidebar--open" : ""}`}>
         <div className="sidebar__brand">
           <img src="/favicon.png" alt="" aria-hidden="true" />
@@ -112,6 +117,9 @@ function LayoutContent() {
             </NavLink>
           ))}
         </nav>
+        <div className="sidebar__nurse" aria-hidden="true">
+          <img src="/body-feet-nurse.png" alt="" />
+        </div>
         <div className="sidebar__footer">
           <img src="/favicon.png" alt="" aria-hidden="true" />
           <div>
@@ -134,6 +142,10 @@ function LayoutContent() {
                 onChange={(event) => setGlobalSearch(event.target.value)}
                 placeholder="Buscar pacientes por nombre, DNI o telefono"
                 aria-label="Buscar pacientes"
+              />
+              <VoiceInputButton
+                compact
+                onTranscript={(transcript) => setGlobalSearch((current) => appendDictation(current, transcript))}
               />
               <kbd>Enter</kbd>
             </form>
@@ -197,4 +209,3 @@ export function AppLayout() {
     </BranchProvider>
   );
 }
-

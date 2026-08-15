@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import type { Perfil } from "../types/domain";
+import { lockMusaCashAccess } from "../services/cashSecurity";
 
 type AuthContextValue = {
   session: Session | null;
@@ -119,6 +120,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    try {
+      await lockMusaCashAccess();
+    } catch {
+      // El cierre de sesion debe continuar aunque la migracion aun no este aplicada.
+    }
     await supabase.auth.signOut();
     setProfile(null);
   }, []);

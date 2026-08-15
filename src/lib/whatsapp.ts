@@ -11,6 +11,17 @@ export function buildReminderMessage(cita: CitaDetalle) {
     .replace("[hora]", toReadableTime(cita.hora_inicio));
 }
 
+export function buildClinicalHistoryShareMessage(patientName: string) {
+  return `Hola, ${patientName}. Body Feet te comparte el documento correspondiente a tu atencion. Si tienes alguna consulta, puedes comunicarte con nosotros.`;
+}
+
+export function buildPrescriptionShareMessage(patientName: string) {
+  return `Hola, ${patientName}. Body Feet te comparte las indicaciones correspondientes a tu atencion. Ante cualquier consulta puedes comunicarte con nosotros.`;
+}
+export function buildPodologyShareMessage(patientName: string) {
+  return `Hola, ${patientName}. Body Feet te comparte tu expediente de evaluacion podologica. Si tienes alguna consulta sobre las indicaciones o cuidados, puedes comunicarte con nosotros.`;
+}
+
 export function buildWhatsAppUrl(phone: string, message: string) {
   const normalized = normalizePhone(phone);
   const peruNumber = normalized.startsWith("51") ? normalized : `51${normalized}`;

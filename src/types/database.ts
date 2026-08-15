@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Auditoria,
   Cita,
   Comprobante,
@@ -122,6 +122,21 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      record_clinical_document_action: {
+        Args: {
+          p_history_id: string;
+          p_action: string;
+          p_metadata?: Json;
+        };
+        Returns: null;
+      };      record_podology_document_action: {
+        Args: {
+          p_record_id: string;
+          p_action: string;
+          p_metadata?: Json;
+        };
+        Returns: null;
+      };
       soft_delete_patient: {
         Args: { p_patient_id: string };
         Returns: null;
@@ -149,6 +164,27 @@ export type Database = {
           p_items: Json;
         };
         Returns: string;
+      };
+      update_prescription: {
+        Args: {
+          p_prescription_id: string;
+          p_patient_id: string;
+          p_branch_id: string;
+          p_professional_id: string;
+          p_date: string;
+          p_diagnosis: string;
+          p_general_instructions: string;
+          p_items: Json;
+        };
+        Returns: null;
+      };
+      record_prescription_document_action: {
+        Args: {
+          p_prescription_id: string;
+          p_action: string;
+          p_metadata?: Json;
+        };
+        Returns: null;
       };
       soft_delete_prescription: {
         Args: { p_prescription_id: string };
@@ -194,7 +230,35 @@ export type Database = {
         Args: { p_sale_id: string };
         Returns: null;
       };
-      soft_delete_professional: {
+      get_musa_cash_security_status: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          sede_id: string;
+          configurado: boolean;
+          autorizado: boolean;
+          autorizado_hasta: string | null;
+          bloqueado_hasta: string | null;
+          intentos_restantes: number;
+        }>;
+      };
+      verify_musa_cash_pin: {
+        Args: { p_pin: string };
+        Returns: Array<{
+          exito: boolean;
+          mensaje: string;
+          autorizado_hasta: string | null;
+          bloqueado_hasta: string | null;
+          intentos_restantes: number;
+        }>;
+      };
+      lock_musa_cash_access: {
+        Args: Record<string, never>;
+        Returns: null;
+      };
+      change_musa_cash_pin: {
+        Args: { p_current_pin: string; p_new_pin: string };
+        Returns: Array<{ exito: boolean; mensaje: string }>;
+      };      soft_delete_professional: {
         Args: { p_professional_id: string };
         Returns: null;
       };
@@ -203,4 +267,3 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
-
