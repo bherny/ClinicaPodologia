@@ -17,11 +17,13 @@ Sistema web para centralizar pacientes, citas, servicios, profesionales, histori
 - Caja y ventas en tiempo real con precios editables, medios de pago, filtros, resumen de ingresos, constancia imprimible y apertura exclusiva por PIN para Musa.
 - Portal privado del paciente con telefono y PIN, consulta de historias clinicas y descarga PDF auditada, sin costo por SMS.
 - La IA de Body Feet para personal autenticado, con proteccion de datos sensibles, cuota por usuario y auditoria sin guardar conversaciones.
+- Control de personal con turnos semanales, entrada/salida con camara, evidencia privada, horas y reportes mensuales.
+- Panel exclusivo de propietaria con RLS, galeria paginada y venta rapida de productos integrada a Caja.
 - Recordatorios por WhatsApp manual con mensaje preparado y registro del resultado.
 - Administracion de sedes, servicios, profesionales, asignaciones y roles.
 - Apariencia configurable por sede con paletas guardadas en Supabase.
 - Auditoria de acciones importantes.
-- RLS de Supabase para administrador, recepcion y profesional.
+- RLS de Supabase para administrador, recepcion, profesional y propietaria.
 
 ## Variables de entorno
 
@@ -67,11 +69,18 @@ pnpm run preview
 15. Ejecuta `supabase/migrations/202608150001_realtime_cash_and_patient_portal.sql`.
 16. Ejecuta `supabase/migrations/202608150002_patient_pin_portal.sql`.
 17. Ejecuta `supabase/migrations/202608150003_body_feet_ai.sql`.
-18. Ejecuta `supabase/seed.sql` para cargar sedes y servicios iniciales.
-19. Activa Auth por correo/contrasena para el personal.
-20. Crea el primer usuario desde Authentication > Users.
-21. Copia el `id` del usuario Auth.
-22. Edita y ejecuta `supabase/create_first_admin.sql`.
+18. Ejecuta `supabase/migrations/202608150004_musa_report_security.sql`.
+19. Ejecuta `supabase/migrations/202608210001_add_owner_role.sql` y espera a que termine.
+20. Ejecuta `supabase/migrations/202608210002_staff_attendance_products.sql`.
+21. Ejecuta `supabase/migrations/202608210003_admin_staff_selection.sql`.
+22. Ejecuta `supabase/migrations/202608210004_sync_auth_profiles.sql`.
+23. Ejecuta `supabase/seed.sql` para cargar sedes y servicios iniciales.
+24. Activa Auth por correo/contrasena para el personal.
+25. Crea el primer usuario desde Authentication > Users.
+26. Copia el `id` del usuario Auth.
+27. Edita y ejecuta `supabase/create_first_admin.sql`.
+
+La configuracion detallada de asistencia, cuenta owner, Storage y productos esta en [`docs/control-personal-owner.md`](docs/control-personal-owner.md).
 
 ## Crear el primer administrador
 
@@ -109,7 +118,7 @@ No se permite entrar solamente con un numero telefonico: eso expondria diagnosti
 
 La IA se ejecuta en `supabase/functions/body-feet-ai` y solo esta disponible para perfiles activos del personal. No usa una clave en el frontend, no consulta automaticamente historias clinicas y no guarda preguntas o respuestas en Auditoria. El sistema oculta identificadores comunes, pero el personal no debe escribir datos que identifiquen pacientes.
 
-La activacion requiere una clave de Groq guardada como secreto de Supabase, aplicar `202608150003_body_feet_ai.sql` y publicar la Edge Function. Sigue [docs/body-feet-ai.md](docs/body-feet-ai.md). El plan gratuito de Groq tiene limites de uso; sin el secreto el resto de la plataforma funciona y el asistente informa que aun no fue activado.
+La activacion requiere una clave de Groq guardada como secreto de Supabase, aplicar `202608150003_body_feet_ai.sql` y publicar la Edge Function. Sigue [docs/body-feet-ai.md](docs/body-feet-ai.md). El modelo predeterminado es `openai/gpt-oss-20b`; la funcion cuenta con recuperacion ante modelos retirados. El plan gratuito de Groq tiene limites de uso; sin el secreto el resto de la plataforma funciona y el asistente informa que aun no fue activado.
 
 ## Control de calidad
 

@@ -17,7 +17,7 @@ const BranchContext = createContext<BranchContextValue | undefined>(undefined);
 
 export function BranchProvider({ children }: { children: React.ReactNode }) {
   const { profile, session } = useAuth();
-  const [selectedBranchId, setSelectedBranchId] = useState("all");
+  const [selectedBranchId, setSelectedBranchId] = useState(() => sessionStorage.getItem("body-feet:selected-branch") ?? "all");
 
   const branchesQuery = useQuery({
     queryKey: ["branches"],
@@ -29,14 +29,22 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     }
   });
 
-  const canSelectAll = profile?.rol === "administrador";
+  const canSelectAll = profile?.rol === "administrador" || profile?.rol === "owner";
 
   useEffect(() => {
     if (!profile) return;
     if (!canSelectAll) {
       setSelectedBranchId(profile.sede_id ?? "all");
+      return;
     }
-  }, [canSelectAll, profile]);
+    if (selectedBranchId !== "all" && branchesQuery.data && !branchesQuery.data.some((branch) => branch.id === selectedBranchId)) {
+      setSelectedBranchId("all");
+    }
+  }, [branchesQuery.data, canSelectAll, profile, selectedBranchId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("body-feet:selected-branch", selectedBranchId);
+  }, [selectedBranchId]);
 
   const value = useMemo(
     () => ({

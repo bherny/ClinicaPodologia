@@ -14,6 +14,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { TableSkeleton } from "../components/ui/Skeleton";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
+import { useDraft } from "../context/DraftContext";
 import { toReadableDate } from "../lib/date";
 import { fullName } from "../lib/format";
 import { downloadSaleReceiptPdf } from "../lib/print";
@@ -207,7 +208,8 @@ function SaleModal({ sale, branches, lockedBranchId, defaultBranchId, onClose }:
   const [error, setError] = useState<string | null>(null);
   const patientsQuery = useQuery({ queryKey: ["sale-patients"], queryFn: () => listPatients({ pageSize: 300 }) });
   const servicesQuery = useQuery({ queryKey: ["sale-services"], queryFn: () => listServices() });
-  const form = useForm<SaleFormValues>({ resolver: zodResolver(saleSchema), defaultValues: sale ? { paciente_id: sale.paciente_id ?? "", cita_id: sale.cita_id, sede_id: sale.sede_id, metodo_pago: sale.metodo_pago, descuento: Number(sale.descuento), igv: Number(sale.igv), numero_operacion: sale.numero_operacion ?? "", observaciones: sale.observaciones ?? "", cliente_tipo_documento: sale.comprobante?.cliente_tipo_documento ?? "", cliente_numero_documento: sale.comprobante?.cliente_numero_documento ?? "", cliente_nombre: sale.comprobante?.cliente_nombre ?? fullName(sale.paciente), cliente_direccion: sale.comprobante?.cliente_direccion ?? "", items: sale.items.map((item) => ({ servicio_id: item.servicio_id ?? "", descripcion: item.descripcion, cantidad: Number(item.cantidad), precio_unitario: Number(item.precio_unitario) })) } : { paciente_id: "", cita_id: null, sede_id: defaultBranchId, metodo_pago: "efectivo", descuento: 0, igv: 0, numero_operacion: "", observaciones: "", cliente_tipo_documento: "DNI", cliente_numero_documento: "", cliente_nombre: "", cliente_direccion: "", items: [{ servicio_id: "", descripcion: "", cantidad: 1, precio_unitario: 0 }] } });
+  const { draft, recovered, saveDraft, clearDraft } = useDraft<SaleFormValues>("sale:new", !sale);
+  const form = useForm<SaleFormValues>({ resolver: zodResolver(saleSchema), defaultValues: sale ? { paciente_id: sale.paciente_id ?? "", cita_id: sale.cita_id, sede_id: sale.sede_id, metodo_pago: sale.metodo_pago, descuento: Number(sale.descuento), igv: Number(sale.igv), numero_operacion: sale.numero_operacion ?? "", observaciones: sale.observaciones ?? "", cliente_tipo_documento: sale.comprobante?.cliente_tipo_documento ?? "", cliente_numero_documento: sale.comprobante?.cliente_numero_documento ?? "", cliente_nombre: sale.comprobante?.cliente_nombre ?? fullName(sale.paciente), cliente_direccion: sale.comprobante?.cliente_direccion ?? "", items: sale.items.map((item) => ({ servicio_id: item.servicio_id ?? "", producto_id: item.producto_id ?? "", descripcion: item.descripcion, cantidad: Number(item.cantidad), precio_unitario: Number(item.precio_unitario) })) } : draft ?? { paciente_id: "", cita_id: null, sede_id: defaultBranchId, metodo_pago: "efectivo", descuento: 0, igv: 0, numero_operacion: "", observaciones: "", cliente_tipo_documento: "DNI", cliente_numero_documento: "", cliente_nombre: "", cliente_direccion: "", items: [{ servicio_id: "", producto_id: "", descripcion: "", cantidad: 1, precio_unitario: 0 }] } });
   const { register, control, handleSubmit, setValue, formState: { errors } } = form;
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const patientId = useWatch({ control, name: "paciente_id" });
@@ -218,6 +220,12 @@ function SaleModal({ sale, branches, lockedBranchId, defaultBranchId, onClose }:
   const total = subtotal - discount + tax;
 
   useEffect(() => {
+    if (sale) return;
+    const subscription = form.watch((values) => saveDraft(values as SaleFormValues));
+    return () => subscription.unsubscribe();
+  }, [form, sale, saveDraft]);
+
+  useEffect(() => {
     const patient = (patientsQuery.data?.data ?? []).find((item) => item.id === patientId);
     if (!patient || sale) return;
     setValue("cliente_nombre", fullName(patient));
@@ -225,19 +233,20 @@ function SaleModal({ sale, branches, lockedBranchId, defaultBranchId, onClose }:
     setValue("cliente_direccion", patient.direccion ?? "");
   }, [patientId, patientsQuery.data, sale, setValue]);
 
-  const mutation = useMutation({ mutationFn: async (values: SaleFormValues) => { if (sale) await updateSale(sale.id, values); else await createSale(values); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["sales"] }); onClose(); }, onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "No se pudo guardar la venta") });
-  return <Modal title={sale ? "Editar venta" : "Registrar venta"} onClose={onClose} footer={<><Button type="button" onClick={onClose}>Cancelar</Button><Button type="submit" form="sale-form" variant="primary" disabled={mutation.isPending}><Banknote />{mutation.isPending ? "Guardando..." : sale ? "Guardar cambios" : `Cobrar ${money(Math.max(total, 0))}`}</Button></>}>
+  const mutation = useMutation({ mutationFn: async (values: SaleFormValues) => { if (sale) await updateSale(sale.id, values); else await createSale(values); }, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["sales"] }); clearDraft(); onClose(); }, onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "No se pudo guardar la venta") });
+  return <Modal title={sale ? "Editar venta" : "Registrar venta"} onClose={onClose} footer={<><Button type="button" onClick={onClose}>Cancelar</Button>{recovered && !sale ? <Button type="button" variant="danger" onClick={() => { clearDraft(); onClose(); }}>Descartar borrador</Button> : null}<Button type="submit" form="sale-form" variant="primary" disabled={mutation.isPending}><Banknote />{mutation.isPending ? "Guardando..." : sale ? "Guardar cambios" : `Cobrar ${money(Math.max(total, 0))}`}</Button></>}>
     <form id="sale-form" className="stack" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
       {error ? <div className="alert">{error}</div> : null}
+      {recovered && !sale ? <div className="draft-notice">Recuperamos la venta que dejaste en proceso.</div> : null}
       <section className="form-section"><h3>Cliente y cobro</h3><div className="form-grid form-grid--three">
         <Field label="Paciente" error={errors.paciente_id?.message}><Select {...register("paciente_id")}><option value="">Seleccionar paciente</option>{(patientsQuery.data?.data ?? []).map((patient) => <option key={patient.id} value={patient.id}>{fullName(patient)} - {patient.telefono}</option>)}</Select></Field>
         <Field label="Sede" error={errors.sede_id?.message}>{sale ? <><Input value={sale.sede?.nombre ?? ""} readOnly /><input type="hidden" {...register("sede_id")} /></> : <Select {...register("sede_id")}>{branches.map((branch) => <option key={branch.id} value={branch.id} disabled={branch.id === lockedBranchId}>{branch.nombre}{branch.id === lockedBranchId ? " (requiere PIN)" : ""}</option>)}</Select>}</Field>
         <Field label="Medio de pago"><Select {...register("metodo_pago")}>{Object.entries(PAYMENT_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</Select></Field>
         <Field label="Numero de operacion"><Input {...register("numero_operacion")} placeholder="Opcional" /></Field>
       </div></section>
-      <section className="form-section"><div className="section-heading"><div><h3>Conceptos</h3><p>El precio se puede ajustar antes de registrar la venta.</p></div><Button type="button" onClick={() => append({ servicio_id: "", descripcion: "", cantidad: 1, precio_unitario: 0 })}><Plus /> Agregar</Button></div>
+      <section className="form-section"><div className="section-heading"><div><h3>Conceptos</h3><p>El precio se puede ajustar antes de registrar la venta.</p></div><Button type="button" onClick={() => append({ servicio_id: "", producto_id: "", descripcion: "", cantidad: 1, precio_unitario: 0 })}><Plus /> Agregar</Button></div>
         <div className="sale-items">{fields.map((field, index) => <div className="sale-item" key={field.id}>
-          <Field label="Servicio"><Select {...register(`items.${index}.servicio_id`)} onChange={(event) => { const service = (servicesQuery.data ?? []).find((item) => item.id === event.target.value); setValue(`items.${index}.servicio_id`, event.target.value); if (service) { setValue(`items.${index}.descripcion`, service.nombre); setValue(`items.${index}.precio_unitario`, Number(service.precio ?? 0)); } }}><option value="">Concepto libre</option>{(servicesQuery.data ?? []).map((service) => <option key={service.id} value={service.id}>{service.nombre}</option>)}</Select></Field>
+          <Field label="Servicio"><Select {...register(`items.${index}.servicio_id`)} onChange={(event) => { const service = (servicesQuery.data ?? []).find((item) => item.id === event.target.value); setValue(`items.${index}.servicio_id`, event.target.value); setValue(`items.${index}.producto_id`, null); if (service) { setValue(`items.${index}.descripcion`, service.nombre); setValue(`items.${index}.precio_unitario`, Number(service.precio ?? 0)); } }}><option value="">Concepto libre</option>{(servicesQuery.data ?? []).map((service) => <option key={service.id} value={service.id}>{service.nombre}</option>)}</Select></Field>
           <Field label="Descripcion" error={errors.items?.[index]?.descripcion?.message}><Input {...register(`items.${index}.descripcion`)} /></Field>
           <Field label="Cantidad"><Input type="number" min="0.01" step="0.01" {...register(`items.${index}.cantidad`)} /></Field>
           <Field label="Precio unitario"><Input type="number" min="0" step="0.01" {...register(`items.${index}.precio_unitario`)} /></Field>

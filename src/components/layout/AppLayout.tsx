@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
+  BriefcaseBusiness,
   Bell,
   Building2,
   CalendarDays,
@@ -46,6 +47,7 @@ const navItems = [
   { to: "/recetas", label: "Recetas", icon: NotebookPen },
   { to: "/ventas", label: "Caja y ventas", icon: WalletCards },
   { to: "/reportes", label: "Reportes", icon: BarChart3 },
+  { to: "/owner", label: "Control de personal", icon: BriefcaseBusiness },
   { to: "/recordatorios", label: "Recordatorios", icon: FileClock },
   { to: "/administracion", label: "Administracion", icon: Settings },
   { to: "/auditoria", label: "Auditoria", icon: History }
@@ -79,6 +81,8 @@ function LayoutContent() {
   }, [open]);
 
   const visibleNav = navItems.filter((item) => {
+    if (item.to === "/owner") return profile?.rol === "owner";
+    if (profile?.rol === "owner") return ["/", "/ventas", "/reportes"].includes(item.to);
     if (["/administracion", "/auditoria"].includes(item.to)) return profile?.rol === "administrador";
     if (["/historias", "/podologia", "/recetas"].includes(item.to)) return profile?.rol !== "recepcion";
     if (["/ventas", "/reportes"].includes(item.to)) return profile?.rol !== "profesional";

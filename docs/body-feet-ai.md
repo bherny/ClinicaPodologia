@@ -10,11 +10,11 @@ Asistente interno para personal autenticado. La clave de Groq vive exclusivament
 
 ```bash
 supabase secrets set GROQ_API_KEY=tu_clave_privada
-supabase secrets set GROQ_MODEL=llama-3.3-70b-versatile
+supabase secrets set GROQ_MODEL=openai/gpt-oss-20b
 supabase secrets set ALLOWED_ORIGINS=https://tu-dominio.vercel.app,http://127.0.0.1:5173
 ```
 
-El secreto `GROQ_MODEL` es opcional; la funcion usa `llama-3.3-70b-versatile` por defecto.
+El secreto `GROQ_MODEL` es opcional; la funcion usa `openai/gpt-oss-20b` por defecto y puede recurrir a `openai/gpt-oss-120b` si el modelo configurado deja de estar disponible.
 
 4. Publica la funcion:
 

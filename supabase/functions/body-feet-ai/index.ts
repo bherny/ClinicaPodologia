@@ -5,7 +5,8 @@ type ConversationMessage = { role: "user" | "assistant"; content: string };
 const MAX_MESSAGES = 12;
 const MAX_MESSAGE_CHARS = 2_000;
 const MAX_TOTAL_CHARS = 12_000;
-const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const FALLBACK_MODELS = [DEFAULT_MODEL, "openai/gpt-oss-120b"];
 
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const DOCUMENT_PATTERN = /\b(D\.?N\.?I\.?|RUC|C\.?E\.?)\s*[:#-]?\s*\d{6,12}\b/gi;
@@ -104,6 +105,40 @@ function extractAnswer(payload: Record<string, unknown>) {
   return parts.join("\n\n");
 }
 
+function requestGroqCompletion(
+  groqKey: string,
+  model: string,
+  messages: ConversationMessage[],
+  context: string
+) {
+  return fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${groqKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: `${INSTRUCTIONS}\n${context}` },
+        ...messages
+      ],
+      temperature: 0.2,
+      max_completion_tokens: 900
+    })
+  });
+}
+
+function publicGroqError(status: number) {
+  if (status === 401) return "La clave de IA necesita ser actualizada por el administrador.";
+  if (status === 429) return "La IA alcanzo temporalmente el limite del plan gratuito. Intenta nuevamente en unos minutos.";
+  if (status === 498) return "Groq esta temporalmente sin capacidad. Intenta nuevamente en unos minutos.";
+  if ([400, 403, 404, 422].includes(status)) {
+    return "El modelo de IA configurado ya no esta disponible. El administrador debe actualizarlo.";
+  }
+  return "El servicio de IA no pudo responder en este momento.";
+}
+
 const INSTRUCTIONS = `Eres "La IA de Body Feet", un asistente interno para el personal de una clinica de podologia y rehabilitacion en Peru.
 Responde en espanol claro, profesional y conciso. Ayuda con procesos administrativos, uso de la plataforma, redaccion de mensajes, organizacion y explicaciones educativas generales.
 No tienes acceso en tiempo real a pacientes, citas, historias clinicas, caja ni configuraciones. Nunca afirmes que consultaste o modificaste datos del sistema.
@@ -159,38 +194,27 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${groqKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: `${INSTRUCTIONS}\nContexto autorizado: rol ${quota.rol ?? "personal"}; sede ${quota.sede_id ?? "no asignada"}.`
-          },
-          ...sanitized.messages
-        ],
-        temperature: 0.2,
-        max_completion_tokens: 900
-      })
-    });
+    const candidates = [...new Set([model, ...FALLBACK_MODELS])];
+    const context = `Contexto autorizado: rol ${quota.rol ?? "personal"}; sede ${quota.sede_id ?? "no asignada"}.`;
+    let selectedModel = candidates[0];
+    let groqResponse = await requestGroqCompletion(groqKey, selectedModel, sanitized.messages, context);
+
+    for (const candidate of candidates.slice(1)) {
+      if (groqResponse.ok || ![400, 403, 404, 498, 500, 502, 503].includes(groqResponse.status)) break;
+      await groqResponse.body?.cancel().catch(() => undefined);
+      selectedModel = candidate;
+      groqResponse = await requestGroqCompletion(groqKey, selectedModel, sanitized.messages, context);
+    }
 
     if (!groqResponse.ok) {
       await client.rpc("record_body_feet_ai_usage", {
-        p_model: model,
+        p_model: selectedModel,
         p_status: "error",
         p_input_chars: sanitized.total,
         p_output_chars: 0,
         p_error_code: `groq_${groqResponse.status}`
       });
-      const publicMessage = groqResponse.status === 429
-        ? "La IA alcanzo temporalmente el limite del plan gratuito. Intenta nuevamente en unos minutos."
-        : "El servicio de IA no pudo responder en este momento.";
-      return jsonResponse(origin, 502, { error: publicMessage });
+      return jsonResponse(origin, 502, { error: publicGroqError(groqResponse.status) });
     }
 
     const payload = await groqResponse.json() as Record<string, unknown>;
@@ -198,13 +222,13 @@ Deno.serve(async (request) => {
     if (!answer) throw new Error("empty_response");
 
     await client.rpc("record_body_feet_ai_usage", {
-      p_model: model,
+      p_model: selectedModel,
       p_status: "ok",
       p_input_chars: sanitized.total,
       p_output_chars: answer.length,
       p_error_code: null
     });
-    return jsonResponse(origin, 200, { answer, model, privacy_redacted: sanitized.redacted });
+    return jsonResponse(origin, 200, { answer, model: selectedModel, privacy_redacted: sanitized.redacted });
   } catch {
     await client.rpc("record_body_feet_ai_usage", {
       p_model: model,

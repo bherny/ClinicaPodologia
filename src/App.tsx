@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { PatientProtectedRoute } from "./components/layout/PatientProtectedRoute";
+import { OwnerRoute } from "./components/layout/OwnerRoute";
 import { ProtectedRoute } from "./components/layout/ProtectedRoute";
 import { TableSkeleton } from "./components/ui/Skeleton";
 import { LoginPage } from "./pages/LoginPage";
@@ -19,6 +20,7 @@ const PodologyPage = lazy(() => import("./pages/PodologyPage").then((module) => 
 const SalesPage = lazy(() => import("./pages/SalesPage").then((module) => ({ default: module.SalesPage })));
 const ReportsPage = lazy(() => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage })));
 const PatientPortalPage = lazy(() => import("./pages/PatientPortalPage").then((module) => ({ default: module.PatientPortalPage })));
+const OwnerPage = lazy(() => import("./pages/OwnerPage").then((module) => ({ default: module.OwnerPage })));
 
 export function App() {
   return (
@@ -41,6 +43,7 @@ export function App() {
             <Route path="podologia" element={<PodologyPage />} />
             <Route path="ventas" element={<SalesPage />} />
             <Route path="reportes" element={<ReportsPage />} />
+            <Route path="owner" element={<OwnerRoute><OwnerPage /></OwnerRoute>} />
             <Route path="recordatorios" element={<RemindersPage />} />
             <Route path="administracion" element={<AdminPage />} />
             <Route path="auditoria" element={<AuditPage />} />

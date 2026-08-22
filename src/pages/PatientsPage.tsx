@@ -14,6 +14,7 @@ import { TableSkeleton } from "../components/ui/Skeleton";
 import { AppointmentStatusBadge, ReminderStatusBadge } from "../components/ui/StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
+import { useDraft } from "../context/DraftContext";
 import { queryClient } from "../lib/queryClient";
 import { fullName } from "../lib/format";
 import { todayISO, toReadableDate, toReadableTime } from "../lib/date";
@@ -245,33 +246,53 @@ function PatientModal({
   profileId?: string;
   onClose: () => void;
 }) {
+  const { draft, recovered, saveDraft, clearDraft } = useDraft<PatientFormValues>("patient:new", !patient);
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors }
   } = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema),
-    defaultValues: {
-      nombres: patient?.nombres ?? "",
-      apellidos: patient?.apellidos ?? "",
-      dni: patient?.dni ?? "",
-      telefono: patient?.telefono ?? "",
-      telefono_alternativo: patient?.telefono_alternativo ?? "",
-      fecha_nacimiento: patient?.fecha_nacimiento ?? "",
-      sexo: patient?.sexo ?? "no_indica",
-      direccion: patient?.direccion ?? "",
-      observaciones: patient?.observaciones ?? "",
-      sede_de_registro_id: patient?.sede_de_registro_id ?? defaultBranchId ?? "",
-      creado_por: patient?.creado_por ?? profileId ?? null
+    defaultValues: patient ? {
+      nombres: patient.nombres,
+      apellidos: patient.apellidos,
+      dni: patient.dni ?? "",
+      telefono: patient.telefono,
+      telefono_alternativo: patient.telefono_alternativo ?? "",
+      fecha_nacimiento: patient.fecha_nacimiento ?? "",
+      sexo: patient.sexo ?? "no_indica",
+      direccion: patient.direccion ?? "",
+      observaciones: patient.observaciones ?? "",
+      sede_de_registro_id: patient.sede_de_registro_id,
+      creado_por: patient.creado_por ?? profileId ?? null
+    } : draft ?? {
+      nombres: "",
+      apellidos: "",
+      dni: "",
+      telefono: "",
+      telefono_alternativo: "",
+      fecha_nacimiento: "",
+      sexo: "no_indica",
+      direccion: "",
+      observaciones: "",
+      sede_de_registro_id: defaultBranchId ?? "",
+      creado_por: profileId ?? null
     }
   });
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (patient) return;
+    const subscription = watch((values) => saveDraft(values as PatientFormValues));
+    return () => subscription.unsubscribe();
+  }, [patient, saveDraft, watch]);
 
   const mutation = useMutation({
     mutationFn: (values: PatientFormValues) => (patient ? updatePatient(patient.id, values) : createPatient(values)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      clearDraft();
       onClose();
     },
     onError: (nextError) => setError(getErrorMessage(nextError, "No se pudo guardar el paciente"))
@@ -286,6 +307,7 @@ function PatientModal({
           <Button type="button" onClick={onClose}>
             Cancelar
           </Button>
+          {recovered && !patient ? <Button type="button" variant="danger" onClick={() => { clearDraft(); onClose(); }}>Descartar borrador</Button> : null}
           <Button form="patient-form" type="submit" variant="primary" disabled={mutation.isPending}>
             Guardar
           </Button>
@@ -294,6 +316,7 @@ function PatientModal({
     >
       <form id="patient-form" className="form-grid" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         {error ? <div className="alert span-2">{error}</div> : null}
+        {recovered && !patient ? <div className="draft-notice span-2">Recuperamos el paciente que dejaste en proceso.</div> : null}
         <Field label="Nombres" error={errors.nombres?.message}>
           <Input {...register("nombres")} />
         </Field>

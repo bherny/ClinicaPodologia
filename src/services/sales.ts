@@ -15,13 +15,14 @@ function saleActionError(error: { message?: string } | null, fallback: string) {
 
 export const saleItemSchema = z.object({
   servicio_id: z.string().optional().nullable(),
+  producto_id: z.string().optional().nullable(),
   descripcion: z.string().trim().min(2, "Ingresa la descripcion"),
   cantidad: z.coerce.number().positive("La cantidad debe ser mayor a cero"),
   precio_unitario: money
 });
 
 export const saleSchema = z.object({
-  paciente_id: z.string().uuid("Selecciona un paciente"),
+  paciente_id: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
   cita_id: z.string().optional().nullable(),
   sede_id: z.string().uuid("Selecciona una sede"),
   metodo_pago: z.enum(["efectivo", "yape", "plin", "tarjeta", "transferencia", "mixto", "otro"]),
@@ -74,7 +75,7 @@ export async function listSales(branchId: string, from?: string, to?: string) {
 
 export async function createSale(values: SaleFormValues) {
   const { data, error } = await db.rpc("create_sale", {
-    p_patient_id: values.paciente_id,
+    p_patient_id: values.paciente_id || null,
     p_appointment_id: values.cita_id || null,
     p_branch_id: values.sede_id,
     p_payment_method: values.metodo_pago,
@@ -88,7 +89,7 @@ export async function createSale(values: SaleFormValues) {
     p_customer_document_number: values.cliente_numero_documento ?? "",
     p_customer_name: values.cliente_nombre,
     p_customer_address: values.cliente_direccion ?? "",
-    p_items: values.items.map((item) => ({ ...item, servicio_id: item.servicio_id || null }))
+    p_items: values.items.map((item) => ({ ...item, servicio_id: item.servicio_id || null, producto_id: item.producto_id || null }))
   });
   if (error) throw new Error(error.message ?? "No se pudo registrar la venta.");
   return data as string;
@@ -97,7 +98,7 @@ export async function createSale(values: SaleFormValues) {
 export async function updateSale(id: string, values: SaleFormValues) {
   const { error } = await db.rpc("update_sale", {
     p_sale_id: id,
-    p_patient_id: values.paciente_id,
+    p_patient_id: values.paciente_id || null,
     p_payment_method: values.metodo_pago,
     p_discount: values.descuento,
     p_tax: values.igv,
@@ -107,7 +108,7 @@ export async function updateSale(id: string, values: SaleFormValues) {
     p_customer_document_number: values.cliente_numero_documento ?? "",
     p_customer_name: values.cliente_nombre,
     p_customer_address: values.cliente_direccion ?? "",
-    p_items: values.items.map((item) => ({ ...item, servicio_id: item.servicio_id || null }))
+    p_items: values.items.map((item) => ({ ...item, servicio_id: item.servicio_id || null, producto_id: item.producto_id || null }))
   });
   if (error) throw saleActionError(error, "No se pudo actualizar la venta.");
 }

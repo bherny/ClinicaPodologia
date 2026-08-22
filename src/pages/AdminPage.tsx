@@ -10,12 +10,15 @@ import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/ui/PageHeader";
 import { TableSkeleton } from "../components/ui/Skeleton";
+import { OwnerShiftsPanel } from "../components/owner/OwnerShiftsPanel";
 import { useAuth } from "../context/AuthContext";
 import { queryClient } from "../lib/queryClient";
 import { fullName, money } from "../lib/format";
+import { formatMinutesDuration, minutesBetweenTimes } from "../lib/date";
 import { createBranchThemeStyle, DEFAULT_BRANCH_THEME, isValidBranchColor, normalizeBranchTheme } from "../lib/branchTheme";
 import { deactivateBranch, deactivateService, softDeleteProfessional, updateBranchTheme, upsertBranch, upsertProfessional, upsertService, updateProfileAdmin } from "../services/admin";
 import { changeMusaCashPin, getMusaCashSecurityStatus, lockMusaCashAccess } from "../services/cashSecurity";
+import { listOwnerShifts } from "../services/attendance";
 import {
   listBranches,
   listProfessionalBranchIds,
@@ -28,16 +31,16 @@ import {
   saveProfessionalServices,
   saveServiceBranches
 } from "../services/catalog";
-import type { Perfil, Profesional, RolUsuario, Sede, Servicio } from "../types/domain";
+import type { Perfil, Profesional, RolUsuario, Sede, Servicio, TurnoProfesionalDetalle } from "../types/domain";
 
-type AdminTab = "sedes" | "servicios" | "profesionales" | "usuarios" | "apariencia" | "seguridad";
+type AdminTab = "sedes" | "servicios" | "profesionales" | "horarios" | "usuarios" | "apariencia" | "seguridad";
 
 export function AdminPage() {
   const { profile } = useAuth();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<AdminTab>(() => {
     const requested = searchParams.get("seccion");
-    return ["sedes", "servicios", "profesionales", "usuarios", "apariencia", "seguridad"].includes(requested ?? "")
+    return ["sedes", "servicios", "profesionales", "horarios", "usuarios", "apariencia", "seguridad"].includes(requested ?? "")
       ? requested as AdminTab
       : "sedes";
   });
@@ -51,6 +54,7 @@ export function AdminPage() {
   const servicesQuery = useQuery({ queryKey: ["admin-services"], queryFn: () => listServices(true) });
   const professionalsQuery = useQuery({ queryKey: ["admin-professionals"], queryFn: () => listProfessionals(true) });
   const profilesQuery = useQuery({ queryKey: ["admin-profiles"], queryFn: listProfiles });
+  const shiftsQuery = useQuery({ queryKey: ["owner-shifts"], queryFn: () => listOwnerShifts(false) });
   const deactivateMutation = useMutation({
     mutationFn: async ({ type, id }: { type: "branch" | "service" | "professional"; id: string }) => {
       if (type === "branch") return deactivateBranch(id);
@@ -90,6 +94,7 @@ export function AdminPage() {
           ["sedes", "Sedes"],
           ["servicios", "Servicios"],
           ["profesionales", "Profesionales"],
+          ["horarios", "Horarios y asistencia"],
           ["usuarios", "Usuarios"],
           ["apariencia", "Apariencia"],
           ["seguridad", "Seguridad"]
@@ -149,11 +154,12 @@ export function AdminPage() {
             <TableSkeleton />
           ) : professionalsQuery.data?.length ? (
             <SimpleTable
-              headers={["Nombre", "Especialidad", "Telefono", "Estado", "Acciones"]}
+              headers={["Nombre", "Especialidad", "Telefono", "Horas semanales", "Estado", "Acciones"]}
               rows={professionalsQuery.data.map((item) => [
                 fullName(item),
                 item.especialidad ?? "",
                 item.telefono ?? "",
+                formatMinutesDuration(weeklyScheduledMinutes(shiftsQuery.data ?? [], item.id)),
                 item.activo ? "Activo" : "Inactivo",
                 <div className="inline" key="actions"><Button type="button" onClick={() => setProfessional(item)} aria-label="Editar profesional"><Edit /></Button><Button type="button" variant="danger" disabled={!item.activo} aria-label="Desactivar profesional" onClick={() => { if (confirm("¿Desactivar este profesional? Sus citas e historias anteriores se conservaran.")) deactivateMutation.mutate({ type: "professional", id: item.id }); }}><Trash2 /></Button></div>
               ])}
@@ -191,6 +197,14 @@ export function AdminPage() {
         </AdminSection>
       ) : null}
 
+      {tab === "horarios" ? (
+        <OwnerShiftsPanel
+          professionals={(professionalsQuery.data ?? []).filter((item) => item.activo)}
+          branches={(branchesQuery.data ?? []).filter((item) => item.activo)}
+          shifts={shiftsQuery.data ?? []}
+        />
+      ) : null}
+
       {tab === "apariencia" ? <BranchAppearanceAdmin branches={branchesQuery.data ?? []} isLoading={branchesQuery.isLoading} /> : null}
 
       {tab === "seguridad" ? <MusaCashSecurityAdmin /> : null}
@@ -209,6 +223,17 @@ export function AdminPage() {
       {user ? <UserModal profile={user} branches={branchesQuery.data ?? []} onClose={() => setUser(null)} /> : null}
     </main>
   );
+}
+
+function activeShiftForToday(shift: TurnoProfesionalDetalle) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date());
+  return shift.activo && shift.vigente_desde <= today && (!shift.vigente_hasta || shift.vigente_hasta >= today);
+}
+
+function weeklyScheduledMinutes(shifts: TurnoProfesionalDetalle[], professionalId: string) {
+  return shifts
+    .filter((shift) => shift.profesional_id === professionalId && !shift.es_descanso && activeShiftForToday(shift))
+    .reduce((total, shift) => total + minutesBetweenTimes(shift.hora_inicio, shift.hora_fin), 0);
 }
 
 const BRANCH_THEME_PRESETS = [

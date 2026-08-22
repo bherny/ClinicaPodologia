@@ -4704,3 +4704,12 @@ body.has-open-modal .ai-floating-launch {
     bottom: max(12px, env(safe-area-inset-bottom));
   }
 }
+.draft-notice {
+  padding: 10px 12px;
+  color: #17645f;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #a9ddd6;
+  border-radius: 6px;
+  background: #ecf9f6;
+}

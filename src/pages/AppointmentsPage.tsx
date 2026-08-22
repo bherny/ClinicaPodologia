@@ -15,6 +15,7 @@ import { TableSkeleton } from "../components/ui/Skeleton";
 import { AppointmentStatusBadge } from "../components/ui/StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import { useBranch } from "../context/BranchContext";
+import { useDraft } from "../context/DraftContext";
 import { downloadCsv } from "../lib/csv";
 import { addMinutesToTime, toReadableDate, toReadableTime } from "../lib/date";
 import { fullName } from "../lib/format";
@@ -355,9 +356,15 @@ function AppointmentModal({
   onClose: () => void;
 }) {
   const { profile } = useAuth();
+  const draftKey = "appointment:new";
+  const { draft, recovered, saveDraft, clearDraft } = useDraft<{
+    values: AppointmentFormValues;
+    patientMode: "existing" | "quick";
+    quickPatient: { nombres: string; apellidos: string; telefono: string; dni: string };
+  }>(draftKey, !appointment);
   const [error, setError] = useState<string | null>(null);
-  const [patientMode, setPatientMode] = useState<"existing" | "quick">("existing");
-  const [quickPatient, setQuickPatient] = useState({
+  const [patientMode, setPatientMode] = useState<"existing" | "quick">(draft?.patientMode ?? "existing");
+  const [quickPatient, setQuickPatient] = useState(draft?.quickPatient ?? {
     nombres: "",
     apellidos: "",
     telefono: "",
@@ -376,26 +383,55 @@ function AppointmentModal({
     register,
     handleSubmit,
     watch,
+    getValues,
     setValue,
     formState: { errors }
   } = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
-    defaultValues: {
-      paciente_id: appointment?.paciente_id ?? "",
-      sede_id: appointment?.sede_id ?? defaultBranchId ?? "",
-      servicio_id: appointment?.servicio_id ?? "",
-      profesional_id: appointment?.profesional_id ?? null,
-      fecha: appointment?.fecha ?? "",
-      hora_inicio: appointment?.hora_inicio?.slice(0, 5) ?? "",
-      hora_fin: appointment?.hora_fin?.slice(0, 5) ?? "",
-      diagnostico: appointment?.diagnostico ?? "",
-      tratamiento: appointment?.tratamiento ?? "",
-      observaciones: appointment?.observaciones ?? "",
-      estado: appointment?.estado ?? "pendiente",
-      creado_por: appointment?.creado_por ?? profile?.id ?? null
+    defaultValues: appointment ? {
+      paciente_id: appointment.paciente_id,
+      sede_id: appointment.sede_id,
+      servicio_id: appointment.servicio_id,
+      profesional_id: appointment.profesional_id ?? null,
+      fecha: appointment.fecha,
+      hora_inicio: appointment.hora_inicio?.slice(0, 5) ?? "",
+      hora_fin: appointment.hora_fin?.slice(0, 5) ?? "",
+      diagnostico: appointment.diagnostico ?? "",
+      tratamiento: appointment.tratamiento ?? "",
+      observaciones: appointment.observaciones ?? "",
+      estado: appointment.estado,
+      creado_por: appointment.creado_por ?? profile?.id ?? null
+    } : draft?.values ?? {
+      paciente_id: "",
+      sede_id: defaultBranchId ?? "",
+      servicio_id: "",
+      profesional_id: null,
+      fecha: "",
+      hora_inicio: "",
+      hora_fin: "",
+      diagnostico: "",
+      tratamiento: "",
+      observaciones: "",
+      estado: "pendiente",
+      creado_por: profile?.id ?? null
     }
   });
 
+
+  useEffect(() => {
+    if (appointment) return;
+    const subscription = watch((values) => saveDraft({
+      values: values as AppointmentFormValues,
+      patientMode,
+      quickPatient
+    }));
+    return () => subscription.unsubscribe();
+  }, [appointment, patientMode, quickPatient, saveDraft, watch]);
+
+  useEffect(() => {
+    if (appointment || (patientMode === "existing" && !Object.values(quickPatient).some(Boolean))) return;
+    saveDraft({ values: getValues(), patientMode, quickPatient });
+  }, [appointment, getValues, patientMode, quickPatient, saveDraft]);
 
   const serviceId = watch("servicio_id");
   const startTime = watch("hora_inicio");
@@ -439,6 +475,7 @@ function AppointmentModal({
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["clinical-history"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      clearDraft();
       onClose();
     },
     onError: (nextError) => setError(nextError instanceof Error ? nextError.message : "No se pudo guardar la cita")
@@ -453,6 +490,7 @@ function AppointmentModal({
           <Button type="button" onClick={onClose}>
             Cancelar
           </Button>
+          {recovered && !appointment ? <Button type="button" variant="danger" onClick={() => { clearDraft(); onClose(); }}>Descartar borrador</Button> : null}
           <Button form="appointment-form" type="submit" variant="primary" disabled={mutation.isPending}>
             Guardar
           </Button>
@@ -461,6 +499,7 @@ function AppointmentModal({
     >
       <form id="appointment-form" className="form-grid" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         {error ? <div className="alert span-2">{error}</div> : null}
+        {recovered && !appointment ? <div className="draft-notice span-2">Recuperamos la cita que dejaste en proceso.</div> : null}
         {!appointment ? (
           <div className="span-2 inline">
             <Button

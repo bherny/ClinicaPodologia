@@ -34,7 +34,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const sessionExpired = sessionStorage.getItem("bodyfeet:session-expired") === "1";
 
-  if (!authLoading && session && profile) return <Navigate to="/" replace />;
+  if (!authLoading && session && profile) return <Navigate to={profile.rol === "owner" ? "/owner" : "/"} replace />;
   if (!authLoading && !profile && hasPatientPortalSession()) {
     return <Navigate to="/mi-historial" replace />;
   }

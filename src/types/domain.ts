@@ -1,4 +1,4 @@
-export type RolUsuario = "administrador" | "recepcion" | "profesional";
+export type RolUsuario = "administrador" | "recepcion" | "profesional" | "owner";
 
 export type EstadoCita =
   | "pendiente"
@@ -255,6 +255,7 @@ export type VentaItem = {
   id: string;
   venta_id: string;
   servicio_id: string | null;
+  producto_id: string | null;
   descripcion: string;
   cantidad: number;
   precio_unitario: number;
@@ -263,6 +264,79 @@ export type VentaItem = {
   created_at: string;
 };
 
+export type Producto = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  sku: string | null;
+  precio: number;
+  activo: boolean;
+  creado_por: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TurnoProfesional = {
+  id: string;
+  profesional_id: string;
+  sede_id: string;
+  dia_semana: number;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  es_descanso: boolean;
+  tolerancia_minutos: number;
+  vigente_desde: string;
+  vigente_hasta: string | null;
+  activo: boolean;
+  creado_por: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TurnoProfesionalDetalle = TurnoProfesional & {
+  profesional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad" | "activo"> | null;
+  sede?: Pick<Sede, "id" | "nombre"> | null;
+};
+
+export type EstadoEntradaAsistencia = "a_tiempo" | "tardanza" | "sin_turno";
+
+export type JornadaAsistencia = {
+  id: string;
+  profesional_id: string;
+  sede_id: string;
+  turno_id: string | null;
+  fecha_local: string;
+  entrada_at: string;
+  salida_at: string | null;
+  foto_entrada_path: string;
+  foto_salida_path: string | null;
+  estado_entrada: EstadoEntradaAsistencia;
+  minutos_trabajados: number | null;
+  entrada_request_id: string;
+  salida_request_id: string | null;
+  creado_por: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JornadaAsistenciaDetalle = JornadaAsistencia & {
+  profesional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad" | "activo"> | null;
+  sede?: Pick<Sede, "id" | "nombre"> | null;
+  turno?: Pick<TurnoProfesional, "id" | "hora_inicio" | "hora_fin" | "es_descanso" | "tolerancia_minutos"> | null;
+};
+
+export type AttendanceContext = {
+  linked: boolean;
+  message?: string;
+  professional?: Pick<Profesional, "id" | "nombres" | "apellidos" | "especialidad">;
+  branch_id?: string;
+  expected_type?: "entrada" | "salida";
+  server_now?: string;
+  local_date?: string;
+  open_session_id?: string | null;
+  open_since?: string | null;
+  shift?: Pick<TurnoProfesional, "id" | "hora_inicio" | "hora_fin" | "es_descanso" | "tolerancia_minutos"> | null;
+};
 export type Comprobante = {
   id: string;
   venta_id: string;

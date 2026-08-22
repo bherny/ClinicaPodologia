@@ -4,14 +4,17 @@ import type {
   Comprobante,
   ExpedientePodologia,
   HistoriaClinica,
+  JornadaAsistencia,
   Paciente,
   Perfil,
+  Producto,
   Profesional,
   Receta,
   RecetaItem,
   Recordatorio,
   Sede,
   Servicio,
+  TurnoProfesional,
   Venta,
   VentaItem
 } from "./domain";
@@ -84,6 +87,21 @@ export type Database = {
         Insert: Insert<ExpedientePodologia>;
         Update: Update<ExpedientePodologia>;
       };
+      productos: {
+        Row: Producto;
+        Insert: Insert<Producto>;
+        Update: Update<Producto>;
+      };
+      turnos_profesionales: {
+        Row: TurnoProfesional;
+        Insert: Insert<TurnoProfesional>;
+        Update: Update<TurnoProfesional>;
+      };
+      jornadas_asistencia: {
+        Row: JornadaAsistencia;
+        Insert: Insert<JornadaAsistencia>;
+        Update: Update<JornadaAsistencia>;
+      };
       ventas: {
         Row: Venta;
         Insert: Insert<Venta>;
@@ -122,6 +140,37 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      get_my_attendance_context: {
+        Args: { p_branch_id?: string | null };
+        Returns: Json;
+      };
+      get_attendance_context: {
+        Args: { p_professional_id: string | null; p_branch_id: string | null };
+        Returns: Json;
+      };
+      resolve_attendance_professional: {
+        Args: { p_requested_professional_id?: string | null };
+        Returns: string | null;
+      };
+      register_attendance_mark: {
+        Args: {
+          p_branch_id: string;
+          p_photo_path: string;
+          p_expected_type: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      register_attendance_mark_for: {
+        Args: {
+          p_professional_id: string;
+          p_branch_id: string;
+          p_photo_path: string;
+          p_expected_type: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
       record_clinical_document_action: {
         Args: {
           p_history_id: string;
@@ -129,7 +178,8 @@ export type Database = {
           p_metadata?: Json;
         };
         Returns: null;
-      };      record_podology_document_action: {
+      };
+      record_podology_document_action: {
         Args: {
           p_record_id: string;
           p_action: string;

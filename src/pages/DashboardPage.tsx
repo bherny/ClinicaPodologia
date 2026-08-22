@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -8,12 +9,14 @@ import {
   CheckCircle2,
   Clock3,
   MessageCircle,
+  ScanFace,
   Send,
   UserPlus,
   Users,
   XCircle
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { AttendanceMarkModal } from "../components/attendance/AttendanceMarkModal";
 import { Card } from "../components/ui/Card";
 import { TableSkeleton } from "../components/ui/Skeleton";
 import { AppointmentStatusBadge } from "../components/ui/StatusBadge";
@@ -26,6 +29,7 @@ import { toReadableDate, toReadableTime, tomorrowISO } from "../lib/date";
 export function DashboardPage() {
   const { selectedBranchId } = useBranch();
   const { profile } = useAuth();
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", selectedBranchId],
     queryFn: () => getDashboardData(selectedBranchId)
@@ -44,6 +48,10 @@ export function DashboardPage() {
           <p>Resumen operativo de citas, pacientes y recordatorios de Body Feet.</p>
         </div>
         <div className="dashboard-welcome__actions">
+          <button className="button dashboard-action dashboard-action--attendance" type="button" onClick={() => setAttendanceOpen(true)}>
+            <ScanFace />
+            Marcar entrada / salida
+          </button>
           <Link className="button dashboard-action dashboard-action--patient" to="/pacientes" state={{ openNewPatient: true }}>
             <UserPlus />
             Registrar paciente
@@ -181,6 +189,7 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+      {attendanceOpen ? <AttendanceMarkModal branchId={selectedBranchId} onClose={() => setAttendanceOpen(false)} /> : null}
     </main>
   );
 }

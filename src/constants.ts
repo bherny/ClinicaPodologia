@@ -24,7 +24,8 @@ export const REMINDER_STATUS_LABELS: Record<EstadoRecordatorio, string> = {
 export const ROLE_LABELS: Record<RolUsuario, string> = {
   administrador: "Administrador",
   recepcion: "Recepcion",
-  profesional: "Profesional"
+  profesional: "Profesional",
+  owner: "Propietaria"
 };
 
 export const APPOINTMENT_STATUSES = Object.entries(APPOINTMENT_STATUS_LABELS).map(([value, label]) => ({
