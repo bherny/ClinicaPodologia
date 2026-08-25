@@ -107,6 +107,81 @@ export type Cita = {
   updated_at: string;
 };
 
+export type PuntoDolorCorporal = {
+  x: number;
+  y: number;
+};
+
+export type FactorClinico =
+  | "flexionado"
+  | "derecho"
+  | "sentado"
+  | "de_pie"
+  | "sentarse"
+  | "levantarse"
+  | "quieto"
+  | "movimiento"
+  | "am"
+  | "conforme_pasa_dia"
+  | "pm"
+  | "caminando"
+  | "tumbado";
+
+export type HistoriaClinicaEvaluacion = {
+  version: 1;
+  como_conocio: string;
+  actividad_laboral: string;
+  horas_laborales: string;
+  actividad_laboral_movimiento: "quieto" | "en_movimiento" | "";
+  baja_laboral: "si" | "no" | "";
+  deporte_actividad_fisica_ocio: string;
+  horas_dia: string;
+  dias_semana: string;
+  cargas_autocargas: string;
+  especificaciones_actividad: string;
+  motivo_consulta: string;
+  sintomas_presentes: string;
+  presentes_desde: string;
+  tras_realizar: string;
+  comenzaron_por: string;
+  sin_motivo: boolean;
+  donde_comenzaron: string;
+  evolucion_sintomas: "mejorando" | "empeorando" | "sin_cambios" | "";
+  tiempo_aparecer_sintomas: string;
+  episodio_anterior: string;
+  tratamiento_anterior_actual: string;
+  sintomas_constantes: string;
+  sintomas_intermitentes: string;
+  eva: string;
+  dolor_impidio_trabajar: "si" | "no" | "";
+  localizacion_dolor_notas: string;
+  localizacion_dolor_puntos: PuntoDolorCorporal[];
+  limitaciones: string;
+  dolor_nocturno: "si" | "no" | "";
+  dolor_tos_estornudo_esfuerzo: "si" | "no" | "";
+  marcha: "normal" | "diferente" | "";
+  continencia_vesical_intestinal: "si" | "no" | "";
+  salud_general_comorbilidades: string;
+  medicacion: string;
+  cirugia: string;
+  pruebas_imagen: string;
+  cambio_peso: string;
+  historial_cancer: string;
+  historia_trauma: string;
+  peor: FactorClinico[];
+  peor_otro: string;
+  mejor: FactorClinico[];
+  mejor_otro: string;
+  culpa_percibida: string;
+  expectativa_visita: string;
+  informacion_importante: string;
+  tests: string[];
+  reevaluacion: string;
+  anotaciones: string;
+  hipotesis_diagnostico: string[];
+  trabajo_casa: string;
+};
+
 export type HistoriaClinica = {
   id: string;
   paciente_id: string;
@@ -118,6 +193,8 @@ export type HistoriaClinica = {
   evolucion: string | null;
   recomendaciones: string | null;
   proxima_fecha_sugerida: string | null;
+  fecha_evaluacion: string;
+  evaluacion: HistoriaClinicaEvaluacion;
   eliminado: boolean;
   created_at: string;
   updated_at: string;

@@ -7,9 +7,10 @@ type ModalProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   onClose: () => void;
+  size?: "default" | "wide";
 };
 
-export function Modal({ title, children, footer, onClose }: ModalProps) {
+export function Modal({ title, children, footer, onClose, size = "default" }: ModalProps) {
   const titleId = useId();
   const modalRef = useRef<HTMLElement>(null);
 
@@ -39,7 +40,7 @@ export function Modal({ title, children, footer, onClose }: ModalProps) {
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section ref={modalRef} className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={modalRef} className={`modal${size === "wide" ? " modal--wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}>
         <header className="modal__header">
           <h2 id={titleId} className="card__title">{title}</h2>
           <Button variant="ghost" type="button" aria-label="Cerrar" onClick={onClose}>

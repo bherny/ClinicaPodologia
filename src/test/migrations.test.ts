@@ -43,4 +43,11 @@ describe("Supabase migration safeguards", () => {
     expect(reportMigration).not.toContain("insert into public.caja_sede_sesiones");
     expect(reportMigration).not.toMatch(/jsonb_build_object\([^)]*p_pin/i);
   });
-});
+
+  it("adds the complete clinical history as structured and indexed data", () => {
+    const clinicalMigration = readFileSync(resolve(migrationDirectory, "202608250001_complete_clinical_history.sql"), "utf8");
+    expect(clinicalMigration).toContain("add column if not exists fecha_evaluacion date");
+    expect(clinicalMigration).toContain("add column if not exists evaluacion jsonb not null");
+    expect(clinicalMigration).toContain("jsonb_typeof(evaluacion) = 'object'");
+    expect(clinicalMigration).toContain("using gin (evaluacion jsonb_path_ops)");
+  });});
