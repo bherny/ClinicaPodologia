@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Edit, Eye, FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Download, Edit, Eye, FileText, MessageCircle, PenLine, Plus, Trash2 } from "lucide-react";
 import { ClinicalHistoryEvaluationView } from "../components/clinical/ClinicalHistoryEvaluationView";
 import { ClinicalHistoryFormModal } from "../components/clinical/ClinicalHistoryFormModal";
+import { DocumentSignatureModal } from "../components/documents/DocumentSignatureModal";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -50,6 +51,7 @@ export function ClinicalHistoryPage() {
   const [editing, setEditing] = useState<HistoriaClinicaDetalle | "new" | null>(null);
   const [viewing, setViewing] = useState<HistoriaClinicaDetalle | null>(null);
   const [sharing, setSharing] = useState<HistoriaClinicaDetalle | null>(null);
+  const [signing, setSigning] = useState<HistoriaClinicaDetalle | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
@@ -169,6 +171,9 @@ export function ClinicalHistoryPage() {
                         >
                           <Download />
                         </Button>
+                        <Button type="button" aria-label="Firmar historia clinica" title="Firmas" onClick={() => setSigning(item)}>
+                          <PenLine />
+                        </Button>
                         <Button
                           type="button"
                           variant="whatsapp"
@@ -224,6 +229,7 @@ export function ClinicalHistoryPage() {
         />
       ) : null}
       {sharing ? <ClinicalHistoryShareModal history={sharing} onClose={() => setSharing(null)} /> : null}
+      {signing ? <DocumentSignatureModal documentType="historia_clinica" documentId={signing.id} patientName={fullName(signing.paciente)} onClose={() => setSigning(null)} /> : null}
     </main>
   );
 }

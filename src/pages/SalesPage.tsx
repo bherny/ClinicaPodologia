@@ -182,10 +182,10 @@ export function SalesPage() {
       </div>
     ) : null}
     <div className="grid grid--metrics sales-metrics">
-      <Card><div className="metric"><span>Ingresos</span><strong>{money(totals.total)}</strong><small>Ventas pagadas</small></div></Card>
-      <Card><div className="metric"><span>Operaciones</span><strong>{totals.operations}</strong><small>En el periodo</small></div></Card>
-      <Card><div className="metric"><span>Efectivo</span><strong>{money(totals.cash)}</strong><small>Cobrado en caja</small></div></Card>
-      <Card><div className="metric"><span>Pagos digitales</span><strong>{money(totals.digital)}</strong><small>Yape, Plin, tarjeta y transferencia</small></div></Card>
+      <Card><div className="metric"><span className="metric__label">Ingresos</span><strong className="metric__value">{money(totals.total)}</strong><small className="metric__hint">Ventas pagadas</small></div></Card>
+      <Card><div className="metric"><span className="metric__label">Operaciones</span><strong className="metric__value">{totals.operations}</strong><small className="metric__hint">En el periodo</small></div></Card>
+      <Card><div className="metric"><span className="metric__label">Efectivo</span><strong className="metric__value">{money(totals.cash)}</strong><small className="metric__hint">Cobrado en caja</small></div></Card>
+      <Card><div className="metric"><span className="metric__label">Pagos digitales</span><strong className="metric__value">{money(totals.digital)}</strong><small className="metric__hint">Yape, Plin, tarjeta y transferencia</small></div></Card>
     </div>
     <div className="toolbar sales-toolbar"><div className="toolbar__filters"><Field label="Desde"><Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></Field><Field label="Hasta"><Input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></Field></div></div>
     {salesQuery.error ? <div className="alert">{salesQuery.error instanceof Error ? salesQuery.error.message : "No se pudieron cargar las ventas"}</div> : null}

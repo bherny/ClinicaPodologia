@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { ExpedientePodologiaDetalle } from "../types/domain";
 import { fullName } from "./format";
+import { appendDocumentSignaturesPage } from "./documentSignaturesPdf";
 
 const PAGE_WIDTH = 215.9;
 const PAGE_HEIGHT = 279.4;
@@ -146,6 +147,8 @@ export async function createPodologyPdf(record: ExpedientePodologiaDetalle) {
   mark(doc, 92.9, 77.65, record.tipo_pie === "egipcio");
   mark(doc, 74.63, 88.35, record.tipo_pie === "griego");
   mark(doc, 93.38, 88.35, record.tipo_pie === "cuadrado");
+
+  await appendDocumentSignaturesPage(doc, "expediente_podologico", record.id, "Expediente podologico - " + fullName(record.paciente));
 
   return { doc, fileName: createFileName(record) };
 }

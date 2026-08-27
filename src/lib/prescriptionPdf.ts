@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import type { RecetaDetalle } from "../types/domain";
 import { toReadableDateLong } from "./date";
 import { fullName } from "./format";
+import { appendDocumentSignaturesPage } from "./documentSignaturesPdf";
 
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
@@ -173,6 +174,8 @@ export async function createPrescriptionPdf(prescription: RecetaDetalle) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.text(prescription.profesional?.especialidad ?? "Profesional tratante", signatureX + 34, y + 26, { align: "center" });
+
+  await appendDocumentSignaturesPage(doc, "receta", prescription.id, "Receta - " + fullName(prescription.paciente));
 
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {

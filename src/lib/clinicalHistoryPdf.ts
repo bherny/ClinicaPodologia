@@ -3,6 +3,7 @@ import { normalizeClinicalEvaluation } from "../services/history";
 import type { HistoriaClinicaDetalle, HistoriaClinicaEvaluacion } from "../types/domain";
 import { toReadableDateLong } from "./date";
 import { fullName } from "./format";
+import { appendDocumentSignaturesPage } from "./documentSignaturesPdf";
 
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
@@ -392,6 +393,8 @@ export async function createClinicalHistoryPdf(history: HistoriaClinicaDetalle) 
       ["Recomendaciones", history.recomendaciones]
     ]);
   }
+
+  await appendDocumentSignaturesPage(doc, "historia_clinica", history.id, "Historia clinica - " + fullName(history.paciente));
 
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {

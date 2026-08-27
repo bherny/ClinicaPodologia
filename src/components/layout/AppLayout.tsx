@@ -14,6 +14,7 @@ import {
   Home,
   LogOut,
   Menu,
+  MessageSquareText,
   NotebookPen,
   Search,
   Sparkles,
@@ -32,7 +33,7 @@ import { useAuth } from "../../context/AuthContext";
 import { BranchProvider, useBranch } from "../../context/BranchContext";
 import { ROLE_LABELS } from "../../constants";
 import { TableSkeleton } from "../ui/Skeleton";
-import { getDashboardData } from "../../services/dashboard";
+import { getPendingReminderCount } from "../../services/dashboard";
 import { createBranchThemeStyle } from "../../lib/branchTheme";
 import { appendDictation } from "../../lib/voice";
 import { isUiSoundEnabled, playUiSound, setUiSoundEnabled } from "../../lib/sound";
@@ -47,6 +48,7 @@ const navItems = [
   { to: "/recetas", label: "Recetas", icon: NotebookPen },
   { to: "/ventas", label: "Caja y ventas", icon: WalletCards },
   { to: "/reportes", label: "Reportes", icon: BarChart3 },
+  { to: "/comunidad", label: "Equipo y novedades", icon: MessageSquareText },
   { to: "/owner", label: "Control de personal", icon: BriefcaseBusiness },
   { to: "/recordatorios", label: "Recordatorios", icon: FileClock },
   { to: "/administracion", label: "Administracion", icon: Settings },
@@ -62,9 +64,10 @@ function LayoutContent() {
   const { branches, selectedBranchId, setSelectedBranchId, canSelectAll } = useBranch();
   const navigate = useNavigate();
   const location = useLocation();
-  const dashboardQuery = useQuery({
-    queryKey: ["dashboard", selectedBranchId],
-    queryFn: () => getDashboardData(selectedBranchId)
+  const reminderCountQuery = useQuery({
+    queryKey: ["pending-reminder-count", selectedBranchId],
+    queryFn: () => getPendingReminderCount(selectedBranchId),
+    staleTime: 2 * 60 * 1000
   });
 
   useEffect(() => {
@@ -82,7 +85,7 @@ function LayoutContent() {
 
   const visibleNav = navItems.filter((item) => {
     if (item.to === "/owner") return profile?.rol === "owner";
-    if (profile?.rol === "owner") return ["/", "/ventas", "/reportes"].includes(item.to);
+    if (profile?.rol === "owner") return ["/", "/ventas", "/reportes", "/comunidad"].includes(item.to);
     if (["/administracion", "/auditoria"].includes(item.to)) return profile?.rol === "administrador";
     if (["/historias", "/podologia", "/recetas"].includes(item.to)) return profile?.rol !== "recepcion";
     if (["/ventas", "/reportes"].includes(item.to)) return profile?.rol !== "profesional";
@@ -102,15 +105,15 @@ function LayoutContent() {
     setGlobalSearch("");
   };
 
-  const pendingNotifications = dashboardQuery.data?.pendingReminders.length ?? 0;
+  const pendingNotifications = reminderCountQuery.data ?? 0;
   const previousPendingNotifications = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!dashboardQuery.isSuccess) return;
+    if (!reminderCountQuery.isSuccess) return;
     const previous = previousPendingNotifications.current;
     if (previous !== null && pendingNotifications > previous) playUiSound("notification");
     previousPendingNotifications.current = pendingNotifications;
-  }, [dashboardQuery.isSuccess, pendingNotifications]);
+  }, [reminderCountQuery.isSuccess, pendingNotifications]);
   const activeBranch = selectedBranchId === "all" ? null : branches.find((branch) => branch.id === selectedBranchId) ?? null;
   const branchThemeStyle = useMemo(() => createBranchThemeStyle(activeBranch), [activeBranch]);
 

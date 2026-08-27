@@ -50,4 +50,32 @@ describe("Supabase migration safeguards", () => {
     expect(clinicalMigration).toContain("add column if not exists evaluacion jsonb not null");
     expect(clinicalMigration).toContain("jsonb_typeof(evaluacion) = 'object'");
     expect(clinicalMigration).toContain("using gin (evaluacion jsonb_path_ops)");
-  });});
+  });
+
+  it("protects document signatures and internal communication", () => {
+    const migration = readFileSync(resolve(migrationDirectory, "202608260001_signatures_and_team_communication.sql"), "utf8");
+    expect(migration).toContain("create table if not exists public.firmas_documentos");
+    expect(migration).toContain("create table if not exists public.mensajes_internos");
+    expect(migration).toContain("create table if not exists public.comunicados");
+    expect(migration).toContain("create table if not exists public.comentarios_comunicado");
+    expect(migration).toContain("alter table public.firmas_documentos enable row level security");
+    expect(migration).toContain("public.can_access_signed_document");
+    expect(migration).toContain("save_document_signature");
+    expect(migration).toContain("supabase_realtime add table public.mensajes_internos");
+    expect(migration).toContain("'team-evidence'");
+    expect(migration).not.toMatch(/public\s*=\s*true/i);
+  });
+
+  it("links message replies and lets every active user soft-delete with audit", () => {
+    const migration = readFileSync(resolve(migrationDirectory, "202608260002_internal_message_replies.sql"), "utf8");
+    expect(migration).toContain("respuesta_a_id uuid references public.mensajes_internos(id)");
+    expect(migration).toContain("Solo puedes responder mensajes del mismo canal");
+    expect(migration).toContain("create trigger auditoria_mensajes_internos");
+    expect(migration).toContain("create trigger auditoria_comentarios_comunicado");
+    expect(migration).toContain("soft_delete_internal_message");
+    expect(migration).toContain("soft_delete_community_post");
+    expect(migration).toContain("soft_delete_community_comment");
+    expect(migration.match(/if not public\.is_active_staff\(\)/g)).toHaveLength(3);
+    expect(migration).toContain("grant execute on function public.soft_delete_internal_message(uuid) to authenticated");
+  });
+});

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ClipboardPlus, Download, FileText, MessageCircle, Printer, Sparkles, Trash2 } from "lucide-react";
+import { ClipboardPlus, Download, FileText, MessageCircle, PenLine, Printer, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
+import { DocumentSignatureModal } from "../components/documents/DocumentSignatureModal";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -36,6 +37,7 @@ export function PodologyPage() {
   const { selectedBranchId, branches } = useBranch();
   const [open, setOpen] = useState(false);
   const [sharing, setSharing] = useState<ExpedientePodologiaDetalle | null>(null);
+  const [signing, setSigning] = useState<ExpedientePodologiaDetalle | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function PodologyPage() {
                 <div className="podology-actions">
                   <Button type="button" aria-label="Imprimir expediente" title="Imprimir expediente" onClick={() => printPodologyRecord(record)}><Printer /></Button>
                   <Button type="button" aria-label="Descargar expediente en PDF" title="Descargar PDF" disabled={documentBusyId === record.id} onClick={() => handleDownload(record)}><Download /></Button>
+                  <Button type="button" aria-label="Firmar expediente" title="Firmas" onClick={() => setSigning(record)}><PenLine /></Button>
                   <Button type="button" variant="whatsapp" aria-label="Enviar expediente por WhatsApp" title="Preparar para WhatsApp" onClick={() => setSharing(record)}><MessageCircle /></Button>
                   <Button type="button" variant="danger" aria-label="Eliminar expediente" title="Eliminar expediente" disabled={deleteMutation.isPending} onClick={() => { if (confirm("Eliminar este expediente podologico? El registro se ocultara y la accion quedara en auditoria.")) deleteMutation.mutate(record.id); }}><Trash2 /></Button>
                 </div>
@@ -103,6 +106,7 @@ export function PodologyPage() {
       </Card>
       {open ? <PodologyAppointmentModal defaultBranchId={selectedBranchId !== "all" ? selectedBranchId : branches[0]?.id ?? ""} onClose={() => setOpen(false)} /> : null}
       {sharing ? <PodologyShareModal record={sharing} onClose={() => setSharing(null)} /> : null}
+      {signing ? <DocumentSignatureModal documentType="expediente_podologico" documentId={signing.id} patientName={fullName(signing.paciente)} onClose={() => setSigning(null)} /> : null}
     </main>
   );
 }

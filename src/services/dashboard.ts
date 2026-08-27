@@ -8,6 +8,29 @@ const db = supabase as any;
 const dashboardSelect =
   "*, paciente:pacientes(id,nombres,apellidos,telefono,dni), sede:sedes(id,nombre,direccion,telefono), servicio:servicios(id,nombre,duracion_aproximada), profesional:profesionales(id,nombres,apellidos,especialidad), recordatorios(id,estado,fecha_envio,medio,mensaje)";
 
+export async function getPendingReminderCount(branchId: string) {
+  const today = todayISO();
+  const nextWeek = format(addDays(new Date(), 7), "yyyy-MM-dd");
+  let query = db
+    .from("citas")
+    .select("id,estado,recordatorios(estado)")
+    .eq("eliminado", false)
+    .in("estado", ["pendiente", "confirmada"])
+    .gte("fecha", today)
+    .lte("fecha", nextWeek);
+
+  if (branchId !== "all") query = query.eq("sede_id", branchId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).filter((appointment: { recordatorios?: Array<{ estado: string }> }) =>
+    !(appointment.recordatorios ?? []).some((reminder) =>
+      ["enviado", "confirmado", "pendiente_respuesta"].includes(reminder.estado)
+    )
+  ).length;
+}
+
 export async function getDashboardData(branchId: string) {
   const today = todayISO();
   const nextWeek = format(addDays(new Date(), 7), "yyyy-MM-dd");

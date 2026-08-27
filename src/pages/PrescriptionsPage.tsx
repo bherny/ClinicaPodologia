@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Edit, Eye, FilePlus2, FileText, MessageCircle, Plus, Printer, Trash2 } from "lucide-react";
+import { Download, Edit, Eye, FilePlus2, FileText, MessageCircle, PenLine, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
+import { DocumentSignatureModal } from "../components/documents/DocumentSignatureModal";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -41,6 +42,7 @@ export function PrescriptionsPage() {
   const [editing, setEditing] = useState<RecetaDetalle | "new" | null>(null);
   const [viewing, setViewing] = useState<RecetaDetalle | null>(null);
   const [sharing, setSharing] = useState<RecetaDetalle | null>(null);
+  const [signing, setSigning] = useState<RecetaDetalle | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
@@ -155,6 +157,9 @@ export function PrescriptionsPage() {
                         >
                           <Download />
                         </Button>
+                        <Button type="button" aria-label="Firmar receta" title="Firmas" onClick={() => setSigning(prescription)}>
+                          <PenLine />
+                        </Button>
                         <Button
                           type="button"
                           variant="whatsapp"
@@ -216,6 +221,7 @@ export function PrescriptionsPage() {
         />
       ) : null}
       {sharing ? <PrescriptionShareModal prescription={sharing} onClose={() => setSharing(null)} /> : null}
+      {signing ? <DocumentSignatureModal documentType="receta" documentId={signing.id} patientName={fullName(signing.paciente)} onClose={() => setSigning(null)} /> : null}
     </main>
   );
 }

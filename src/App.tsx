@@ -21,6 +21,7 @@ const SalesPage = lazy(() => import("./pages/SalesPage").then((module) => ({ def
 const ReportsPage = lazy(() => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage })));
 const PatientPortalPage = lazy(() => import("./pages/PatientPortalPage").then((module) => ({ default: module.PatientPortalPage })));
 const OwnerPage = lazy(() => import("./pages/OwnerPage").then((module) => ({ default: module.OwnerPage })));
+const CommunityPage = lazy(() => import("./pages/CommunityPage").then((module) => ({ default: module.CommunityPage })));
 
 export function App() {
   return (
@@ -43,6 +44,7 @@ export function App() {
             <Route path="podologia" element={<PodologyPage />} />
             <Route path="ventas" element={<SalesPage />} />
             <Route path="reportes" element={<ReportsPage />} />
+            <Route path="comunidad" element={<CommunityPage />} />
             <Route path="owner" element={<OwnerRoute><OwnerPage /></OwnerRoute>} />
             <Route path="recordatorios" element={<RemindersPage />} />
             <Route path="administracion" element={<AdminPage />} />
