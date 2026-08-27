@@ -8,9 +8,11 @@ import { AuthProvider } from "./context/AuthContext";
 import { DraftProvider } from "./context/DraftContext";
 import { queryClient } from "./lib/queryClient";
 import { installSoundUnlock } from "./lib/sound";
+import { initializeUiTheme } from "./lib/uiTheme";
 import "./styles/global.css";
 import "./styles/attendance.css";
 
+initializeUiTheme();
 installSoundUnlock();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

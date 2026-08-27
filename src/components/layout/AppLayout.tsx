@@ -15,11 +15,13 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Moon,
   NotebookPen,
   Search,
   Sparkles,
   Settings,
   Stethoscope,
+  Sun,
   Users,
   Volume2,
   VolumeX,
@@ -28,6 +30,7 @@ import {
 import { Button } from "../ui/Button";
 import { Select } from "../ui/Field";
 import { VoiceInputButton } from "../ui/VoiceInputButton";
+import { MotivationalBanner } from "./MotivationalBanner";
 import { BodyFeetAiAssistant } from "../ai/BodyFeetAiAssistant";
 import { useAuth } from "../../context/AuthContext";
 import { BranchProvider, useBranch } from "../../context/BranchContext";
@@ -37,6 +40,7 @@ import { getPendingReminderCount } from "../../services/dashboard";
 import { createBranchThemeStyle } from "../../lib/branchTheme";
 import { appendDictation } from "../../lib/voice";
 import { isUiSoundEnabled, playUiSound, setUiSoundEnabled } from "../../lib/sound";
+import { getUiTheme, setUiTheme } from "../../lib/uiTheme";
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
@@ -60,6 +64,7 @@ function LayoutContent() {
   const [aiOpen, setAiOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(isUiSoundEnabled);
+  const [uiTheme, setCurrentUiTheme] = useState(getUiTheme);
   const { profile, signOut } = useAuth();
   const { branches, selectedBranchId, setSelectedBranchId, canSelectAll } = useBranch();
   const navigate = useNavigate();
@@ -210,6 +215,21 @@ function LayoutContent() {
             <button
               className="notification-button"
               type="button"
+              aria-label={uiTheme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+              title={uiTheme === "dark" ? "Modo claro" : "Modo oscuro"}
+              aria-pressed={uiTheme === "dark"}
+              onClick={() => {
+                const nextTheme = uiTheme === "dark" ? "light" : "dark";
+                setUiTheme(nextTheme);
+                setCurrentUiTheme(nextTheme);
+                playUiSound("tap");
+              }}
+            >
+              {uiTheme === "dark" ? <Sun /> : <Moon />}
+            </button>
+            <button
+              className="notification-button"
+              type="button"
               aria-label={`${pendingNotifications} recordatorios pendientes`}
               onClick={() => {
                 playUiSound("tap");
@@ -237,6 +257,7 @@ function LayoutContent() {
             </Button>
           </div>
         </header>
+        <MotivationalBanner />
         <Suspense fallback={<main className="page"><TableSkeleton rows={8} /></main>}>
           <Outlet />
         </Suspense>
