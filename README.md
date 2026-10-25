@@ -74,6 +74,10 @@ pnpm run preview
 20. Ejecuta `supabase/migrations/202608210002_staff_attendance_products.sql`.
 21. Ejecuta `supabase/migrations/202608210003_admin_staff_selection.sql`.
 22. Ejecuta `supabase/migrations/202608210004_sync_auth_profiles.sql`.
+23. Ejecuta `supabase/migrations/202608250001_complete_clinical_history.sql`.
+24. Ejecuta `supabase/migrations/202608260001_signatures_and_team_communication.sql`.
+25. Ejecuta `supabase/migrations/202608260002_internal_message_replies.sql`.
+26. Ejecuta `supabase/migrations/202610250001_physiotherapy_sessions_and_clinical_photos.sql`.
 23. Ejecuta `supabase/seed.sql` para cargar sedes y servicios iniciales.
 24. Activa Auth por correo/contrasena para el personal.
 25. Crea el primer usuario desde Authentication > Users.
@@ -147,6 +151,8 @@ pnpm audit --prod
 ## Historias clinicas y WhatsApp
 
 Administradores y profesionales autorizados pueden visualizar y editar historias clinicas, descargar un PDF con datos reales y preparar su envio por WhatsApp. Las descargas y los intentos de compartir se registran en Auditoria despues de aplicar `202608140001_clinical_history_documents.sql`.
+
+La historia clinica incluye anamnesis, antecedentes, signos vitales, localizacion y comportamiento del dolor, limitaciones, mediciones, diagnostico y pronostico fisioterapeutico, objetivos, plan de intervencion y evolucion. Despues de aplicar `202610250001_physiotherapy_sessions_and_clinical_photos.sql`, cada historia dispone de una linea de tiempo con sesiones rapidas de fisioterapia, firma del tecnico y fotografias opcionales de antes, despues o seguimiento. Las imagenes se comprimen en el navegador y se guardan en un bucket privado con RLS; no se publican mediante una URL permanente.
 
 La version actual descarga el PDF y abre WhatsApp con el numero y mensaje preparados. WhatsApp Web no permite adjuntar ese archivo mediante `wa.me`: el usuario debe adjuntarlo manualmente antes de enviar. El sistema no marca el documento como enviado automaticamente.
 

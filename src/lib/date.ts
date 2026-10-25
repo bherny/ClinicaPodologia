@@ -27,6 +27,11 @@ export function toReadableDateLong(date?: string | null) {
   return parsed ? format(parsed, "EEEE d 'de' MMMM yyyy", { locale: es }) : "Fecha invalida";
 }
 
+export function toReadableDateTime(date?: string | null) {
+  const parsed = parseSafeDate(date);
+  return parsed ? format(parsed, "d MMM yyyy, h:mm a", { locale: es }) : "Fecha invalida";
+}
+
 export function toReadableTime(time?: string | null) {
   return time ? time.slice(0, 5) : "--:--";
 }

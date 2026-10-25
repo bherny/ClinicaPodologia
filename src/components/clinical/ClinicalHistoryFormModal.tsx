@@ -100,7 +100,7 @@ export function ClinicalHistoryFormModal({
   const draftKey = `clinical-history:${history?.id ?? "new"}`;
   const { draft, recovered, saveDraft, clearDraft } = useDraft<ClinicalHistoryFormValues>(draftKey);
   const defaults = useMemo(
-    () => draft ?? buildDefaultValues(history, defaultBranchId),
+    () => draft ? { ...draft, evaluacion: normalizeClinicalEvaluation(draft.evaluacion) } : buildDefaultValues(history, defaultBranchId),
     [defaultBranchId, draft, history]
   );
   const [error, setError] = useState<string | null>(null);
@@ -274,9 +274,34 @@ export function ClinicalHistoryFormModal({
           <Field label="Motivo de consulta">
             <Textarea rows={4} {...register("evaluacion.motivo_consulta")} />
           </Field>
+          <Field label="¿Qué espera conseguir de esta visita?">
+            <Textarea rows={3} {...register("evaluacion.expectativa_visita")} />
+          </Field>
+          <Field label="Anamnesis">
+            <Textarea rows={5} {...register("evaluacion.anamnesis")} />
+          </Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<HeartPulse />} title="Síntomas presentes" number="04">
+        <ClinicalFormSection icon={<ClipboardCheck />} title="Antecedentes y signos vitales" number="04">
+          <div className="clinical-form-grid clinical-form-grid--two">
+            <Field label="Antecedentes médicos"><Textarea {...register("evaluacion.antecedentes_medicos")} /></Field>
+            <Field label="Antecedentes familiares"><Textarea {...register("evaluacion.antecedentes_familiares")} /></Field>
+            <Field label="Antecedentes quirúrgicos"><Textarea {...register("evaluacion.antecedentes_quirurgicos")} /></Field>
+            <Field label="Antecedentes traumatológicos"><Textarea {...register("evaluacion.antecedentes_traumatologicos")} /></Field>
+            <Field label="Medicamentos"><Textarea {...register("evaluacion.medicacion")} /></Field>
+            <Field label="Actividad física"><Textarea {...register("evaluacion.actividad_fisica_antecedente")} /></Field>
+            <Field label="Pruebas de imagen"><Textarea {...register("evaluacion.pruebas_imagen")} /></Field>
+          </div>
+          <div className="clinical-form-grid clinical-form-grid--four">
+            <Field label="Presión arterial"><Input placeholder="120/80" {...register("evaluacion.presion_arterial")} /></Field>
+            <Field label="FC"><Input placeholder="lpm" {...register("evaluacion.frecuencia_cardiaca")} /></Field>
+            <Field label="FR"><Input placeholder="rpm" {...register("evaluacion.frecuencia_respiratoria")} /></Field>
+            <Field label="Saturación"><Input placeholder="%" {...register("evaluacion.saturacion_oxigeno")} /></Field>
+            <Field label="Temperatura"><Input placeholder="°C" {...register("evaluacion.temperatura_corporal")} /></Field>
+          </div>
+        </ClinicalFormSection>
+
+        <ClinicalFormSection icon={<HeartPulse />} title="Síntomas presentes" number="05">
           <Field label="Síntomas presentes"><Textarea rows={4} {...register("evaluacion.sintomas_presentes")} /></Field>
           <div className="clinical-form-grid clinical-form-grid--two">
             <Field label="Presentes desde"><Input {...register("evaluacion.presentes_desde")} /></Field>
@@ -301,10 +326,14 @@ export function ClinicalHistoryFormModal({
               <Input type="number" min="0" max="10" step="1" {...register("evaluacion.eva")} />
             </Field>
             <YesNoField label="¿El dolor te ha impedido trabajar alguna vez?" register={register} name="evaluacion.dolor_impidio_trabajar" />
+            <Field label="Dolor en reposo"><Input {...register("evaluacion.dolor_reposo")} /></Field>
+            <Field label="Dolor con actividad"><Input {...register("evaluacion.dolor_actividad")} /></Field>
+            <Field label="Peor momento"><Input {...register("evaluacion.peor_momento")} /></Field>
+            <Field label="Mejor momento"><Input {...register("evaluacion.mejor_momento")} /></Field>
           </div>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<Activity />} title="Localización del dolor" number="05">
+        <ClinicalFormSection icon={<Activity />} title="Localización del dolor" number="06">
           <div className="clinical-pain-layout">
             <div>
               <label className="clinical-inline-label">Marque en el esquema la zona donde percibe los síntomas</label>
@@ -317,10 +346,15 @@ export function ClinicalHistoryFormModal({
               <Textarea rows={9} {...register("evaluacion.localizacion_dolor_notas")} />
             </Field>
           </div>
+          <Field label="Tipo de dolor / irradiación"><Textarea rows={3} {...register("evaluacion.tipo_irradiacion")} /></Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<Stethoscope />} title="Limitaciones" number="06">
-          <Field label="Limitaciones"><Textarea rows={4} {...register("evaluacion.limitaciones")} /></Field>
+        <ClinicalFormSection icon={<Stethoscope />} title="Limitaciones" number="07">
+          <div className="clinical-form-grid clinical-form-grid--three">
+            <Field label="Limitaciones referidas por el paciente"><Textarea rows={4} {...register("evaluacion.limitaciones_referidas")} /></Field>
+            <Field label="Actividades de la vida diaria afectadas"><Textarea rows={4} {...register("evaluacion.actividades_vida_diaria_afectadas")} /></Field>
+            <Field label="Actividades laborales afectadas"><Textarea rows={4} {...register("evaluacion.actividades_laborales_afectadas")} /></Field>
+          </div>
           <div className="clinical-form-grid clinical-form-grid--four">
             <YesNoField label="Dolor nocturno" register={register} name="evaluacion.dolor_nocturno" />
             <YesNoField label="Dolor al toser, estornudar o hacer fuerza" register={register} name="evaluacion.dolor_tos_estornudo_esfuerzo" />
@@ -329,57 +363,34 @@ export function ClinicalHistoryFormModal({
             </Field>
             <YesNoField label="Continencia vesical / intestinal" register={register} name="evaluacion.continencia_vesical_intestinal" />
           </div>
-          <div className="clinical-form-grid clinical-form-grid--two">
-            <Field label="Salud general / Comorbilidades"><Textarea {...register("evaluacion.salud_general_comorbilidades")} /></Field>
-            <Field label="Medicación"><Textarea {...register("evaluacion.medicacion")} /></Field>
-            <Field label="Cirugía"><Input {...register("evaluacion.cirugia")} /></Field>
-            <Field label="Pruebas de imagen"><Input {...register("evaluacion.pruebas_imagen")} /></Field>
-            <Field label="Cambio de peso"><Input {...register("evaluacion.cambio_peso")} /></Field>
-            <Field label="Historial cáncer"><Input {...register("evaluacion.historial_cancer")} /></Field>
-            <Field label="Historia trauma"><Textarea {...register("evaluacion.historia_trauma")} /></Field>
-          </div>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<Activity />} title="Peor" number="07">
+        <ClinicalFormSection icon={<Activity />} title="Factores que empeoran" number="08">
           <FactorChecklist register={register} name="evaluacion.peor" />
           <Field label="Otro"><Input {...register("evaluacion.peor_otro")} /></Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<Activity />} title="Mejor" number="08">
+        <ClinicalFormSection icon={<Activity />} title="Factores que mejoran" number="09">
           <FactorChecklist register={register} name="evaluacion.mejor" />
           <Field label="Otro"><Input {...register("evaluacion.mejor_otro")} /></Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<ClipboardCheck />} title="Preguntas clave" number="09">
-          <Field label="¿A qué le echas la culpa de lo que te está pasando?"><Textarea {...register("evaluacion.culpa_percibida")} /></Field>
-          <Field label="¿Qué esperas conseguir de esta visita?"><Textarea {...register("evaluacion.expectativa_visita")} /></Field>
-          <Field label="¿Hay algo importante en el tintero?"><Textarea {...register("evaluacion.informacion_importante")} /></Field>
+        <ClinicalFormSection icon={<ClipboardList />} title="Mediciones y pruebas" number="10">
+          <Field label="Mediciones, pruebas funcionales y resultados"><Textarea rows={5} {...register("evaluacion.mediciones_pruebas")} /></Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<ClipboardList />} title="Test" number="10">
-          {[0, 1, 2].map((index) => (
-            <Field key={index} label={`${index + 1}.`}><Input {...register(`evaluacion.tests.${index}` as const)} /></Field>
-          ))}
+        <ClinicalFormSection icon={<Stethoscope />} title="Diagnóstico y pronóstico fisioterapéutico" number="11">
+          <Field label="Diagnóstico fisioterapéutico"><Textarea rows={4} {...register("evaluacion.diagnostico_fisioterapeutico")} /></Field>
+          <div className="clinical-form-grid clinical-form-grid--two">
+            <Field label="Pronóstico fisioterapéutico"><Textarea rows={4} {...register("evaluacion.pronostico_fisioterapeutico")} /></Field>
+            <Field label="Tiempo estimado"><Input {...register("evaluacion.tiempo_estimado")} /></Field>
+          </div>
+          <Field label="Objetivos del tratamiento"><Textarea rows={4} {...register("evaluacion.objetivos_tratamiento")} /></Field>
         </ClinicalFormSection>
 
-        <ClinicalFormSection icon={<Stethoscope />} title="Reevaluación" number="11">
-          <Field label="Reevaluación"><Textarea rows={4} {...register("evaluacion.reevaluacion")} /></Field>
-        </ClinicalFormSection>
-
-        <ClinicalFormSection icon={<ClipboardList />} title="Anotaciones" number="12">
-          <Field label="Anotaciones"><Textarea rows={5} {...register("evaluacion.anotaciones")} /></Field>
-        </ClinicalFormSection>
-
-        <ClinicalFormSection icon={<HeartPulse />} title="Hipótesis de diagnóstico" number="13">
-          {[0, 1, 2].map((index) => (
-            <Field key={index} label={`${index + 1}.`}><Input {...register(`evaluacion.hipotesis_diagnostico.${index}` as const)} /></Field>
-          ))}
-        </ClinicalFormSection>
-
-        <ClinicalFormSection icon={<House />} title="Trabajo para casa" number="14">
-          <Field label="De todo lo que le he explicado al paciente, ¿con qué se ha quedado?">
-            <Textarea rows={5} {...register("evaluacion.trabajo_casa")} />
-          </Field>
+        <ClinicalFormSection icon={<House />} title="Plan de intervención y evolución" number="12">
+          <Field label="Plan de intervención fisioterapéutica"><Textarea rows={5} {...register("evaluacion.plan_intervencion_fisioterapeutica")} /></Field>
+          <Field label="Registro de sesión / evolución"><Textarea rows={5} {...register("evaluacion.registro_sesion_evolucion")} /></Field>
           <Field label="Próxima sesión">
             <Input type="date" {...register("proxima_fecha_sugerida")} />
           </Field>

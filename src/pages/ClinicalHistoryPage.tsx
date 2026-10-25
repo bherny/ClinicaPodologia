@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Edit, Eye, FileText, MessageCircle, PenLine, Plus, Trash2 } from "lucide-react";
+import { Camera, Download, Edit, Eye, FileText, MessageCircle, PenLine, Plus, Trash2 } from "lucide-react";
 import { ClinicalHistoryEvaluationView } from "../components/clinical/ClinicalHistoryEvaluationView";
 import { ClinicalHistoryFormModal } from "../components/clinical/ClinicalHistoryFormModal";
 import { DocumentSignatureModal } from "../components/documents/DocumentSignatureModal";
@@ -25,6 +25,8 @@ import {
 } from "../services/history";
 import type { HistoriaClinicaDetalle } from "../types/domain";
 
+const ClinicalTimelineModal = lazy(() => import("../components/clinical/ClinicalTimelineModal").then((module) => ({ default: module.ClinicalTimelineModal })));
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -37,12 +39,12 @@ function clinicalValue(value?: string | null) {
 
 function clinicalHypothesis(history: HistoriaClinicaDetalle) {
   const evaluation = normalizeClinicalEvaluation(history.evaluacion);
-  return evaluation.hipotesis_diagnostico.find(Boolean) || clinicalValue(history.diagnostico) || "Pendiente de completar";
+  return evaluation.diagnostico_fisioterapeutico || evaluation.hipotesis_diagnostico.find(Boolean) || clinicalValue(history.diagnostico) || "Pendiente de completar";
 }
 
 function clinicalPlan(history: HistoriaClinicaDetalle) {
   const evaluation = normalizeClinicalEvaluation(history.evaluacion);
-  return evaluation.trabajo_casa || clinicalValue(history.tratamiento_realizado) || "Pendiente de completar";
+  return evaluation.plan_intervencion_fisioterapeutica || evaluation.trabajo_casa || clinicalValue(history.tratamiento_realizado) || "Pendiente de completar";
 }
 
 export function ClinicalHistoryPage() {
@@ -52,6 +54,7 @@ export function ClinicalHistoryPage() {
   const [viewing, setViewing] = useState<HistoriaClinicaDetalle | null>(null);
   const [sharing, setSharing] = useState<HistoriaClinicaDetalle | null>(null);
   const [signing, setSigning] = useState<HistoriaClinicaDetalle | null>(null);
+  const [timeline, setTimeline] = useState<HistoriaClinicaDetalle | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [documentBusyId, setDocumentBusyId] = useState<string | null>(null);
@@ -133,8 +136,8 @@ export function ClinicalHistoryPage() {
                 <tr>
                   <th>Fecha</th>
                   <th>Paciente</th>
-                  <th>Hipótesis diagnóstica</th>
-                  <th>Trabajo para casa</th>
+                  <th>Diagnóstico fisioterapéutico</th>
+                  <th>Plan de intervención</th>
                   <th>Profesional</th>
                   <th>Sede</th>
                   <th>Proxima fecha</th>
@@ -173,6 +176,9 @@ export function ClinicalHistoryPage() {
                         </Button>
                         <Button type="button" aria-label="Firmar historia clinica" title="Firmas" onClick={() => setSigning(item)}>
                           <PenLine />
+                        </Button>
+                        <Button type="button" aria-label="Ver sesiones y fotografias" title="Sesiones y fotos" onClick={() => setTimeline(item)}>
+                          <Camera />
                         </Button>
                         <Button
                           type="button"
@@ -230,6 +236,7 @@ export function ClinicalHistoryPage() {
       ) : null}
       {sharing ? <ClinicalHistoryShareModal history={sharing} onClose={() => setSharing(null)} /> : null}
       {signing ? <DocumentSignatureModal documentType="historia_clinica" documentId={signing.id} patientName={fullName(signing.paciente)} onClose={() => setSigning(null)} /> : null}
+      {timeline ? <Suspense fallback={<div className="modal-backdrop"><div className="modal modal--wide"><TableSkeleton rows={5} /></div></div>}><ClinicalTimelineModal history={timeline} onClose={() => setTimeline(null)} /></Suspense> : null}
     </main>
   );
 }

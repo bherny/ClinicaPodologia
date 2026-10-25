@@ -1,4 +1,4 @@
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -31,7 +31,6 @@ import { Button } from "../ui/Button";
 import { Select } from "../ui/Field";
 import { VoiceInputButton } from "../ui/VoiceInputButton";
 import { MotivationalBanner } from "./MotivationalBanner";
-import { BodyFeetAiAssistant } from "../ai/BodyFeetAiAssistant";
 import { useAuth } from "../../context/AuthContext";
 import { BranchProvider, useBranch } from "../../context/BranchContext";
 import { ROLE_LABELS } from "../../constants";
@@ -41,6 +40,9 @@ import { createBranchThemeStyle } from "../../lib/branchTheme";
 import { appendDictation } from "../../lib/voice";
 import { isUiSoundEnabled, playUiSound, setUiSoundEnabled } from "../../lib/sound";
 import { getUiTheme, setUiTheme } from "../../lib/uiTheme";
+
+const BodyFeetAiAssistant = lazy(() => import("../ai/BodyFeetAiAssistant").then((module) => ({ default: module.BodyFeetAiAssistant })));
+const WelcomeSplash = lazy(() => import("./WelcomeSplash").then((module) => ({ default: module.WelcomeSplash })));
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
@@ -65,6 +67,7 @@ function LayoutContent() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(isUiSoundEnabled);
   const [uiTheme, setCurrentUiTheme] = useState(getUiTheme);
+  const [showWelcome, setShowWelcome] = useState(false);
   const { profile, signOut } = useAuth();
   const { branches, selectedBranchId, setSelectedBranchId, canSelectAll } = useBranch();
   const navigate = useNavigate();
@@ -74,6 +77,16 @@ function LayoutContent() {
     queryFn: () => getPendingReminderCount(selectedBranchId),
     staleTime: 2 * 60 * 1000
   });
+
+  useEffect(() => {
+    if (!profile?.auth_user_id) return;
+    const key = `bodyfeet:welcome:${profile.auth_user_id}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    setShowWelcome(true);
+  }, [profile?.auth_user_id]);
+
+  const finishWelcome = useCallback(() => setShowWelcome(false), []);
 
   useEffect(() => {
     setOpen(false);
@@ -280,7 +293,8 @@ function LayoutContent() {
           <Sparkles aria-hidden="true" />
         </button>
       ) : null}
-      <BodyFeetAiAssistant open={aiOpen} onClose={() => setAiOpen(false)} />
+      {aiOpen ? <Suspense fallback={null}><BodyFeetAiAssistant open onClose={() => setAiOpen(false)} /></Suspense> : null}
+      {showWelcome ? <Suspense fallback={null}><WelcomeSplash name={profile?.nombres || "equipo Body Feet"} onFinish={finishWelcome} /></Suspense> : null}
     </div>
   );
 }

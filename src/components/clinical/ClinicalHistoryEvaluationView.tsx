@@ -41,8 +41,6 @@ function factors(values: string[], other: string) {
 
 export function ClinicalHistoryEvaluationView({ history }: { history: HistoriaClinicaDetalle }) {
   const evaluation = normalizeClinicalEvaluation(history.evaluacion);
-  const hypotheses = evaluation.hipotesis_diagnostico.filter(Boolean);
-  const tests = evaluation.tests.filter(Boolean);
   const attentionDate = history.fecha_evaluacion ?? history.cita?.fecha ?? history.created_at.slice(0, 10);
   const symptoms = [
     ["Síntomas presentes", evaluation.sintomas_presentes],
@@ -57,21 +55,21 @@ export function ClinicalHistoryEvaluationView({ history }: { history: HistoriaCl
     ["Síntomas constantes", evaluation.sintomas_constantes],
     ["Síntomas intermitentes", evaluation.sintomas_intermitentes],
     ["EVA", evaluation.eva ? `${evaluation.eva} / 10` : ""],
-    ["¿Impidió trabajar?", choice(evaluation.dolor_impidio_trabajar)]
+    ["¿Impidió trabajar?", choice(evaluation.dolor_impidio_trabajar)],
+    ["Dolor en reposo", evaluation.dolor_reposo],
+    ["Dolor con actividad", evaluation.dolor_actividad],
+    ["Peor momento", evaluation.peor_momento],
+    ["Mejor momento", evaluation.mejor_momento]
   ] as const;
   const limitations = [
-    ["Limitaciones", evaluation.limitaciones],
+    ["Limitaciones referidas", evaluation.limitaciones_referidas || evaluation.limitaciones],
+    ["Actividades de la vida diaria afectadas", evaluation.actividades_vida_diaria_afectadas],
+    ["Actividades laborales afectadas", evaluation.actividades_laborales_afectadas],
     ["Dolor nocturno", choice(evaluation.dolor_nocturno)],
     ["Dolor al toser, estornudar o hacer fuerza", choice(evaluation.dolor_tos_estornudo_esfuerzo)],
     ["Marcha", choice(evaluation.marcha)],
     ["Continencia vesical / intestinal", choice(evaluation.continencia_vesical_intestinal)],
-    ["Salud general / Comorbilidades", evaluation.salud_general_comorbilidades],
-    ["Medicación", evaluation.medicacion],
-    ["Cirugía", evaluation.cirugia],
-    ["Pruebas de imagen", evaluation.pruebas_imagen],
-    ["Cambio de peso", evaluation.cambio_peso],
-    ["Historial cáncer", evaluation.historial_cancer],
-    ["Historia trauma", evaluation.historia_trauma]
+    ["Salud general / Comorbilidades", evaluation.salud_general_comorbilidades]
   ] as const;
 
   return (
@@ -118,6 +116,30 @@ export function ClinicalHistoryEvaluationView({ history }: { history: HistoriaCl
 
       <DisplaySection icon={<ClipboardList />} title="Motivo de consulta">
         <ClinicalParagraph value={evaluation.motivo_consulta || history.cita?.observaciones} />
+        <DataGrid entries={[["¿Qué espera conseguir de esta visita?", evaluation.expectativa_visita]]} />
+        <RecordDatum label="Anamnesis" value={evaluation.anamnesis} />
+      </DisplaySection>
+
+      <DisplaySection icon={<ClipboardCheck />} title="Antecedentes personales y familiares">
+        <DataGrid entries={[
+          ["Antecedentes médicos", evaluation.antecedentes_medicos],
+          ["Antecedentes quirúrgicos", evaluation.antecedentes_quirurgicos || evaluation.cirugia],
+          ["Antecedentes traumatológicos", evaluation.antecedentes_traumatologicos || evaluation.historia_trauma],
+          ["Medicamentos", evaluation.medicacion],
+          ["Actividad física", evaluation.actividad_fisica_antecedente],
+          ["Antecedentes familiares", evaluation.antecedentes_familiares],
+          ["Pruebas de imagen", evaluation.pruebas_imagen]
+        ]} />
+      </DisplaySection>
+
+      <DisplaySection icon={<HeartPulse />} title="Signos vitales">
+        <DataGrid entries={[
+          ["Presión arterial", evaluation.presion_arterial],
+          ["Frecuencia cardiaca", evaluation.frecuencia_cardiaca],
+          ["Frecuencia respiratoria", evaluation.frecuencia_respiratoria],
+          ["Saturación", evaluation.saturacion_oxigeno],
+          ["Temperatura", evaluation.temperatura_corporal]
+        ]} />
       </DisplaySection>
 
       <DisplaySection icon={<HeartPulse />} title="Síntomas presentes">
@@ -129,43 +151,31 @@ export function ClinicalHistoryEvaluationView({ history }: { history: HistoriaCl
           <BodyPainMap points={evaluation.localizacion_dolor_puntos} readOnly />
         ) : null}
         <ClinicalParagraph value={evaluation.localizacion_dolor_notas} />
+        <DataGrid entries={[["Tipo de dolor / irradiación", evaluation.tipo_irradiacion]]} />
       </DisplaySection>
 
       <DisplaySection icon={<Stethoscope />} title="Limitaciones">
         <DataGrid entries={limitations} />
       </DisplaySection>
 
-      <DisplaySection icon={<Activity />} title="Peor / Mejor">
+      <DisplaySection icon={<Activity />} title="Factores que modifican los síntomas">
         <DataGrid entries={[
-          ["Peor", factors(evaluation.peor, evaluation.peor_otro)],
-          ["Mejor", factors(evaluation.mejor, evaluation.mejor_otro)]
+          ["Factores que empeoran", factors(evaluation.peor, evaluation.peor_otro)],
+          ["Factores que mejoran", factors(evaluation.mejor, evaluation.mejor_otro)]
         ]} />
       </DisplaySection>
 
-      <DisplaySection icon={<ClipboardCheck />} title="Preguntas clave">
+      <DisplaySection icon={<ClipboardList />} title="Mediciones y pruebas">
+        <ClinicalParagraph value={evaluation.mediciones_pruebas || evaluation.tests.filter(Boolean).join("\n")} />
+      </DisplaySection>
+
+      <DisplaySection icon={<HeartPulse />} title="Diagnóstico y pronóstico fisioterapéutico">
         <DataGrid entries={[
-          ["¿A qué le echa la culpa?", evaluation.culpa_percibida],
-          ["¿Qué espera conseguir de esta visita?", evaluation.expectativa_visita],
-          ["¿Hay algo importante en el tintero?", evaluation.informacion_importante]
+          ["Diagnóstico fisioterapéutico", evaluation.diagnostico_fisioterapeutico || evaluation.hipotesis_diagnostico.filter(Boolean).join("\n") || clean(history.diagnostico)],
+          ["Pronóstico fisioterapéutico", evaluation.pronostico_fisioterapeutico],
+          ["Tiempo estimado", evaluation.tiempo_estimado],
+          ["Objetivos del tratamiento", evaluation.objetivos_tratamiento]
         ]} />
-      </DisplaySection>
-
-      {tests.length ? (
-        <DisplaySection icon={<ClipboardList />} title="Test">
-          <NumberedValues values={tests} />
-        </DisplaySection>
-      ) : null}
-
-      <DisplaySection icon={<Stethoscope />} title="Reevaluación">
-        <ClinicalParagraph value={evaluation.reevaluacion || history.evolucion} />
-      </DisplaySection>
-
-      <DisplaySection icon={<ClipboardList />} title="Anotaciones">
-        <ClinicalParagraph value={evaluation.anotaciones} />
-      </DisplaySection>
-
-      <DisplaySection icon={<HeartPulse />} title="Hipótesis de diagnóstico">
-        <NumberedValues values={hypotheses.length ? hypotheses : [clean(history.diagnostico)].filter(Boolean)} />
       </DisplaySection>
 
       {clean(history.tratamiento_realizado) ? (
@@ -174,8 +184,11 @@ export function ClinicalHistoryEvaluationView({ history }: { history: HistoriaCl
         </DisplaySection>
       ) : null}
 
-      <DisplaySection icon={<House />} title="Trabajo para casa">
-        <ClinicalParagraph value={evaluation.trabajo_casa || history.recomendaciones} />
+      <DisplaySection icon={<House />} title="Plan de intervención y evolución">
+        <DataGrid entries={[
+          ["Plan de intervención fisioterapéutica", evaluation.plan_intervencion_fisioterapeutica || history.recomendaciones],
+          ["Registro de sesión / evolución", evaluation.registro_sesion_evolucion || evaluation.reevaluacion || history.evolucion]
+        ]} />
         {history.proxima_fecha_sugerida ? (
           <DataGrid entries={[["Próxima sesión", toReadableDateLong(history.proxima_fecha_sugerida)]]} />
         ) : null}
@@ -208,11 +221,6 @@ function DataGrid({ entries }: { entries: ReadonlyArray<readonly [string, string
 function ClinicalParagraph({ value }: { value?: string | null }) {
   const normalized = clean(value);
   return <p className={normalized ? "clinical-record-text" : "clinical-record-empty"}>{normalized || "Sin información registrada."}</p>;
-}
-
-function NumberedValues({ values }: { values: string[] }) {
-  if (!values.length) return <p className="clinical-record-empty">Sin información registrada.</p>;
-  return <ol className="clinical-record-list">{values.map((value, index) => <li key={`${value}-${index}`}>{value}</li>)}</ol>;
 }
 
 function RecordDatum({ label, value }: { label: string; value?: string | null }) {

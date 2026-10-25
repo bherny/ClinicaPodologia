@@ -44,7 +44,7 @@ const factors = [
 ] as const;
 
 const clinicalEvaluationSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   como_conocio: shortText,
   actividad_laboral: shortText,
   horas_laborales: shortText,
@@ -102,7 +102,33 @@ const clinicalEvaluationSchema = z.object({
   reevaluacion: clinicalText,
   anotaciones: clinicalText,
   hipotesis_diagnostico: z.array(clinicalText).length(3),
-  trabajo_casa: clinicalText
+  trabajo_casa: clinicalText,
+  anamnesis: clinicalText,
+  antecedentes_medicos: clinicalText,
+  antecedentes_quirurgicos: clinicalText,
+  antecedentes_traumatologicos: clinicalText,
+  antecedentes_familiares: clinicalText,
+  actividad_fisica_antecedente: clinicalText,
+  presion_arterial: shortText,
+  frecuencia_cardiaca: shortText,
+  frecuencia_respiratoria: shortText,
+  saturacion_oxigeno: shortText,
+  temperatura_corporal: shortText,
+  dolor_reposo: shortText,
+  dolor_actividad: shortText,
+  peor_momento: shortText,
+  mejor_momento: shortText,
+  tipo_irradiacion: clinicalText,
+  limitaciones_referidas: clinicalText,
+  actividades_vida_diaria_afectadas: clinicalText,
+  actividades_laborales_afectadas: clinicalText,
+  mediciones_pruebas: clinicalText,
+  diagnostico_fisioterapeutico: clinicalText,
+  pronostico_fisioterapeutico: clinicalText,
+  tiempo_estimado: shortText,
+  objetivos_tratamiento: clinicalText,
+  plan_intervencion_fisioterapeutica: clinicalText,
+  registro_sesion_evolucion: clinicalText
 });
 
 export const clinicalHistorySchema = z.object({
@@ -123,7 +149,7 @@ export type ClinicalHistoryFormValues = z.infer<typeof clinicalHistorySchema>;
 
 export function createEmptyClinicalEvaluation(): HistoriaClinicaEvaluacion {
   return {
-    version: 1,
+    version: 2,
     como_conocio: "",
     actividad_laboral: "",
     horas_laborales: "",
@@ -174,7 +200,33 @@ export function createEmptyClinicalEvaluation(): HistoriaClinicaEvaluacion {
     reevaluacion: "",
     anotaciones: "",
     hipotesis_diagnostico: ["", "", ""],
-    trabajo_casa: ""
+    trabajo_casa: "",
+    anamnesis: "",
+    antecedentes_medicos: "",
+    antecedentes_quirurgicos: "",
+    antecedentes_traumatologicos: "",
+    antecedentes_familiares: "",
+    actividad_fisica_antecedente: "",
+    presion_arterial: "",
+    frecuencia_cardiaca: "",
+    frecuencia_respiratoria: "",
+    saturacion_oxigeno: "",
+    temperatura_corporal: "",
+    dolor_reposo: "",
+    dolor_actividad: "",
+    peor_momento: "",
+    mejor_momento: "",
+    tipo_irradiacion: "",
+    limitaciones_referidas: "",
+    actividades_vida_diaria_afectadas: "",
+    actividades_laborales_afectadas: "",
+    mediciones_pruebas: "",
+    diagnostico_fisioterapeutico: "",
+    pronostico_fisioterapeutico: "",
+    tiempo_estimado: "",
+    objetivos_tratamiento: "",
+    plan_intervencion_fisioterapeutica: "",
+    registro_sesion_evolucion: ""
   };
 }
 
@@ -184,7 +236,7 @@ export function normalizeClinicalEvaluation(value?: Partial<HistoriaClinicaEvalu
   return {
     ...empty,
     ...value,
-    version: 1,
+    version: 2,
     peor: Array.isArray(value.peor) ? value.peor.filter((item): item is HistoriaClinicaEvaluacion["peor"][number] => factors.includes(item as typeof factors[number])) : [],
     mejor: Array.isArray(value.mejor) ? value.mejor.filter((item): item is HistoriaClinicaEvaluacion["mejor"][number] => factors.includes(item as typeof factors[number])) : [],
     tests: [0, 1, 2].map((index) => value.tests?.[index] ?? ""),
@@ -219,10 +271,10 @@ function normalizeHistoryPayload(values: ClinicalHistoryFormValues) {
     ...values,
     cita_id: values.cita_id || null,
     profesional_id: values.profesional_id || null,
-    diagnostico: values.diagnostico || hypotheses.join("\n") || "Pendiente de registrar",
-    tratamiento_realizado: values.tratamiento_realizado || "Pendiente de registrar",
-    evolucion: values.evolucion || evaluation.reevaluacion || null,
-    recomendaciones: values.recomendaciones || evaluation.trabajo_casa || null,
+    diagnostico: values.diagnostico || evaluation.diagnostico_fisioterapeutico || hypotheses.join("\n") || "Pendiente de registrar",
+    tratamiento_realizado: values.tratamiento_realizado || evaluation.plan_intervencion_fisioterapeutica || "Pendiente de registrar",
+    evolucion: values.evolucion || evaluation.registro_sesion_evolucion || evaluation.reevaluacion || null,
+    recomendaciones: values.recomendaciones || evaluation.plan_intervencion_fisioterapeutica || evaluation.trabajo_casa || null,
     proxima_fecha_sugerida: values.proxima_fecha_sugerida || null,
     evaluacion: evaluation
   };

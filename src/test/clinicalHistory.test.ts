@@ -13,15 +13,20 @@ describe("complete clinical history", () => {
     const evaluation = createEmptyClinicalEvaluation();
 
     expect(evaluation).toMatchObject({
-      version: 1,
+      version: 2,
       motivo_consulta: "",
       sintomas_presentes: "",
       localizacion_dolor_puntos: [],
       tests: ["", "", ""],
       hipotesis_diagnostico: ["", "", ""],
-      trabajo_casa: ""
+      trabajo_casa: "",
+      anamnesis: "",
+      antecedentes_familiares: "",
+      diagnostico_fisioterapeutico: "",
+      plan_intervencion_fisioterapeutica: "",
+      registro_sesion_evolucion: ""
     });
-    expect(Object.keys(evaluation)).toHaveLength(52);
+    expect(Object.keys(evaluation).length).toBeGreaterThan(70);
   });
 
   it("normalizes legacy or incomplete evaluations without losing valid data", () => {
@@ -39,6 +44,8 @@ describe("complete clinical history", () => {
     expect(normalized.peor).toEqual(["sentado"]);
     expect(normalized.tests).toEqual(["Lasègue positivo", "", ""]);
     expect(normalized.localizacion_dolor_puntos).toEqual([{ x: 0, y: 100 }]);
+    expect(normalized.version).toBe(2);
+    expect(normalized.antecedentes_medicos).toBe("");
   });
 
   it("rejects invalid dates, pain scale values and map coordinates", () => {

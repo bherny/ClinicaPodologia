@@ -221,39 +221,6 @@ export async function createClinicalHistoryPdf(history: HistoriaClinicaDetalle) 
     }
   };
 
-  const addNumberedSection = (title: string, values: string[]) => {
-    drawSectionTitle(title);
-    const normalized = values.map(clean).filter(Boolean);
-    if (!normalized.length) {
-      ensureSpace(15);
-      doc.setFillColor(249, 252, 254);
-      doc.setDrawColor(...BORDER);
-      doc.roundedRect(MARGIN, y, CONTENT_WIDTH, 14, 1.5, 1.5, "FD");
-      doc.setTextColor(...MUTED);
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(8.3);
-      doc.text("Sin informacion registrada.", MARGIN + 4, y + 8);
-      y += 18;
-      return;
-    }
-    normalized.forEach((value, index) => {
-      const lines = doc.splitTextToSize(value, CONTENT_WIDTH - 12);
-      const height = Math.max(9, lines.length * 4.2 + 4);
-      ensureSpace(height);
-      doc.setTextColor(...BRAND_BLUE);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.text(`${index + 1}.`, MARGIN + 2, y + 5);
-      doc.setTextColor(...BRAND_DARK);
-      doc.setFont("helvetica", "normal");
-      doc.text(lines, MARGIN + 9, y + 5);
-      doc.setDrawColor(...BORDER);
-      doc.line(MARGIN + 9, y + height - 1, PAGE_WIDTH - MARGIN, y + height - 1);
-      y += height;
-    });
-    y += 4;
-  };
-
   const addBodyMap = () => {
     drawSectionTitle("Localizacion del dolor");
     doc.setTextColor(...MUTED);
@@ -327,6 +294,28 @@ export async function createClinicalHistoryPdf(history: HistoriaClinicaDetalle) 
   ]);
 
   addParagraphSection("Motivo de consulta", evaluation.motivo_consulta || history.cita?.observaciones);
+  addGridSection("Objetivo de la visita y anamnesis", [
+    ["Que espera conseguir de esta visita", evaluation.expectativa_visita],
+    ["Anamnesis", evaluation.anamnesis]
+  ]);
+
+  addGridSection("Antecedentes personales y familiares", [
+    ["Antecedentes medicos", evaluation.antecedentes_medicos],
+    ["Antecedentes familiares", evaluation.antecedentes_familiares],
+    ["Antecedentes quirurgicos", evaluation.antecedentes_quirurgicos || evaluation.cirugia],
+    ["Antecedentes traumatologicos", evaluation.antecedentes_traumatologicos || evaluation.historia_trauma],
+    ["Medicamentos", evaluation.medicacion],
+    ["Actividad fisica", evaluation.actividad_fisica_antecedente],
+    ["Pruebas de imagen", evaluation.pruebas_imagen]
+  ]);
+
+  addGridSection("Signos vitales", [
+    ["Presion arterial", evaluation.presion_arterial],
+    ["Frecuencia cardiaca", evaluation.frecuencia_cardiaca],
+    ["Frecuencia respiratoria", evaluation.frecuencia_respiratoria],
+    ["Saturacion", evaluation.saturacion_oxigeno],
+    ["Temperatura", evaluation.temperatura_corporal]
+  ]);
 
   addGridSection("Sintomas presentes", [
     ["Sintomas presentes", evaluation.sintomas_presentes],
@@ -341,45 +330,42 @@ export async function createClinicalHistoryPdf(history: HistoriaClinicaDetalle) 
     ["Sintomas constantes en", evaluation.sintomas_constantes],
     ["Sintomas intermitentes en", evaluation.sintomas_intermitentes],
     ["EVA", evaluation.eva ? `${evaluation.eva} / 10` : ""],
-    ["El dolor impidio trabajar", choice(evaluation.dolor_impidio_trabajar)]
+    ["El dolor impidio trabajar", choice(evaluation.dolor_impidio_trabajar)],
+    ["Dolor en reposo", evaluation.dolor_reposo],
+    ["Dolor con actividad", evaluation.dolor_actividad],
+    ["Peor momento", evaluation.peor_momento],
+    ["Mejor momento", evaluation.mejor_momento]
   ]);
 
   addBodyMap();
+  addGridSection("Descripcion del dolor", [
+    ["Localizacion", evaluation.localizacion_dolor_notas],
+    ["Tipo / irradiacion", evaluation.tipo_irradiacion]
+  ]);
 
   addGridSection("Limitaciones", [
-    ["Limitaciones", evaluation.limitaciones],
+    ["Limitaciones referidas", evaluation.limitaciones_referidas || evaluation.limitaciones],
+    ["Actividades de la vida diaria afectadas", evaluation.actividades_vida_diaria_afectadas],
+    ["Actividades laborales afectadas", evaluation.actividades_laborales_afectadas],
     ["Dolor nocturno", choice(evaluation.dolor_nocturno)],
     ["Dolor tos / estornudo / hacer fuerza", choice(evaluation.dolor_tos_estornudo_esfuerzo)],
     ["Marcha", choice(evaluation.marcha)],
     ["Continencia vesical / intestinal", choice(evaluation.continencia_vesical_intestinal)],
-    ["Salud general / Comorbilidades", evaluation.salud_general_comorbilidades],
-    ["Medicacion", evaluation.medicacion],
-    ["Cirugia", evaluation.cirugia],
-    ["Pruebas de imagen", evaluation.pruebas_imagen],
-    ["Cambio de peso", evaluation.cambio_peso],
-    ["Historial cancer", evaluation.historial_cancer],
-    ["Historia trauma", evaluation.historia_trauma]
+    ["Salud general / Comorbilidades", evaluation.salud_general_comorbilidades]
   ]);
 
-  addGridSection("Peor", [["Factores", factorText(evaluation.peor, evaluation.peor_otro)]] , 1);
-  addGridSection("Mejor", [["Factores", factorText(evaluation.mejor, evaluation.mejor_otro)]], 1);
+  addGridSection("Factores que empeoran", [["Factores", factorText(evaluation.peor, evaluation.peor_otro)]] , 1);
+  addGridSection("Factores que mejoran", [["Factores", factorText(evaluation.mejor, evaluation.mejor_otro)]], 1);
 
-  addGridSection("Preguntas clave", [
-    ["A que le echa la culpa", evaluation.culpa_percibida],
-    ["Que espera conseguir de esta visita", evaluation.expectativa_visita],
-    ["Hay algo importante en el tintero", evaluation.informacion_importante]
-  ], 1);
-
-  addNumberedSection("Test", evaluation.tests);
-  addParagraphSection("Reevaluacion", evaluation.reevaluacion || history.evolucion);
-  addParagraphSection("Anotaciones", evaluation.anotaciones);
-  addNumberedSection(
-    "Hipotesis de diagnostico",
-    evaluation.hipotesis_diagnostico.some(Boolean)
-      ? evaluation.hipotesis_diagnostico
-      : [clean(history.diagnostico)]
-  );
-  addParagraphSection("Trabajo para casa", evaluation.trabajo_casa || history.recomendaciones);
+  addParagraphSection("Mediciones y pruebas", evaluation.mediciones_pruebas || evaluation.tests.filter(Boolean).join("\n"));
+  addGridSection("Diagnostico y pronostico fisioterapeutico", [
+    ["Diagnostico fisioterapeutico", evaluation.diagnostico_fisioterapeutico || evaluation.hipotesis_diagnostico.filter(Boolean).join("\n") || history.diagnostico],
+    ["Pronostico fisioterapeutico", evaluation.pronostico_fisioterapeutico],
+    ["Tiempo estimado", evaluation.tiempo_estimado],
+    ["Objetivos del tratamiento", evaluation.objetivos_tratamiento]
+  ]);
+  addParagraphSection("Plan de intervencion fisioterapeutica", evaluation.plan_intervencion_fisioterapeutica || history.recomendaciones);
+  addParagraphSection("Registro de sesion / evolucion", evaluation.registro_sesion_evolucion || evaluation.reevaluacion || history.evolucion);
   addGridSection("Proxima sesion", [[
     "Fecha sugerida",
     history.proxima_fecha_sugerida ? toReadableDateLong(history.proxima_fecha_sugerida) : ""

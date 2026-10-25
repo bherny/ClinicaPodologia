@@ -134,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     await supabase.auth.signOut();
+    if (profile?.auth_user_id) sessionStorage.removeItem(`bodyfeet:welcome:${profile.auth_user_id}`);
     setProfile(null);
   }, [profile]);
 

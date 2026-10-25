@@ -3,6 +3,7 @@ import type {
   Cita,
   Comprobante,
   ExpedientePodologia,
+  FotoHistoriaClinica,
   HistoriaClinica,
   JornadaAsistencia,
   Paciente,
@@ -14,12 +15,16 @@ import type {
   Recordatorio,
   Sede,
   Servicio,
+  SesionFisioterapia,
   TurnoProfesional,
   Venta,
   VentaItem
 } from "./domain";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+type SesionFisioterapiaRow = Omit<SesionFisioterapia, "firma_trazos"> & { firma_trazos: Json };
+type FotoHistoriaClinicaRow = Omit<FotoHistoriaClinica, "signed_url">;
 
 type Insert<T> = Partial<Omit<T, "id" | "created_at" | "updated_at">> & {
   id?: string;
@@ -66,6 +71,16 @@ export type Database = {
         Row: HistoriaClinica;
         Insert: Insert<HistoriaClinica>;
         Update: Update<HistoriaClinica>;
+      };
+      sesiones_fisioterapia: {
+        Row: SesionFisioterapiaRow;
+        Insert: Insert<SesionFisioterapiaRow>;
+        Update: Update<SesionFisioterapiaRow>;
+      };
+      historia_clinica_fotos: {
+        Row: FotoHistoriaClinicaRow;
+        Insert: Insert<FotoHistoriaClinicaRow>;
+        Update: Update<FotoHistoriaClinicaRow>;
       };
       recordatorios: {
         Row: Recordatorio;

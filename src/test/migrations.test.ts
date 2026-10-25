@@ -78,4 +78,16 @@ describe("Supabase migration safeguards", () => {
     expect(migration.match(/if not public\.is_active_staff\(\)/g)).toHaveLength(3);
     expect(migration).toContain("grant execute on function public.soft_delete_internal_message(uuid) to authenticated");
   });
+
+  it("protects physiotherapy sessions and private clinical photos", () => {
+    const migration = readFileSync(resolve(migrationDirectory, "202610250001_physiotherapy_sessions_and_clinical_photos.sql"), "utf8");
+    expect(migration).toContain("create table if not exists public.sesiones_fisioterapia");
+    expect(migration).toContain("create table if not exists public.historia_clinica_fotos");
+    expect(migration).toContain("public.can_access_clinical_history");
+    expect(migration).toContain("'clinical-history-photos'");
+    expect(migration).toContain("public = false");
+    expect(migration).toContain("file_size_limit = excluded.file_size_limit");
+    expect(migration).toContain("audit_row_changes");
+    expect(migration).not.toMatch(/public\s*=\s*true/i);
+  });
 });

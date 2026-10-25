@@ -128,7 +128,7 @@ export type FactorClinico =
   | "tumbado";
 
 export type HistoriaClinicaEvaluacion = {
-  version: 1;
+  version: 2;
   como_conocio: string;
   actividad_laboral: string;
   horas_laborales: string;
@@ -180,6 +180,82 @@ export type HistoriaClinicaEvaluacion = {
   anotaciones: string;
   hipotesis_diagnostico: string[];
   trabajo_casa: string;
+  anamnesis: string;
+  antecedentes_medicos: string;
+  antecedentes_quirurgicos: string;
+  antecedentes_traumatologicos: string;
+  antecedentes_familiares: string;
+  actividad_fisica_antecedente: string;
+  presion_arterial: string;
+  frecuencia_cardiaca: string;
+  frecuencia_respiratoria: string;
+  saturacion_oxigeno: string;
+  temperatura_corporal: string;
+  dolor_reposo: string;
+  dolor_actividad: string;
+  peor_momento: string;
+  mejor_momento: string;
+  tipo_irradiacion: string;
+  limitaciones_referidas: string;
+  actividades_vida_diaria_afectadas: string;
+  actividades_laborales_afectadas: string;
+  mediciones_pruebas: string;
+  diagnostico_fisioterapeutico: string;
+  pronostico_fisioterapeutico: string;
+  tiempo_estimado: string;
+  objetivos_tratamiento: string;
+  plan_intervencion_fisioterapeutica: string;
+  registro_sesion_evolucion: string;
+};
+
+export type EvolucionSesionFisioterapia = "mejoro" | "igual" | "empeoro" | "";
+
+export type SesionFisioterapia = {
+  id: string;
+  historia_clinica_id: string;
+  paciente_id: string;
+  sede_id: string;
+  profesional_id: string | null;
+  fecha: string;
+  numero_sesion: number;
+  motivo_zona: string | null;
+  diagnostico_medico: string | null;
+  eva_inicial: number | null;
+  eva_final: number | null;
+  zona_dolor: string | null;
+  observaciones_clinicas: string[];
+  observacion_otro: string | null;
+  hallazgos: string | null;
+  tratamientos: string[];
+  otro_tratamiento: string | null;
+  ejercicios_dosificacion: string | null;
+  evolucion: EvolucionSesionFisioterapia;
+  respuesta_paciente: string | null;
+  indicaciones_proxima_sesion: string | null;
+  tecnico_nombre: string | null;
+  firma_trazos: Array<Array<{ x: number; y: number }>>;
+  creado_por: string | null;
+  eliminado: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EtapaFotoClinica = "antes" | "despues" | "seguimiento" | "otra";
+
+export type FotoHistoriaClinica = {
+  id: string;
+  historia_clinica_id: string;
+  sesion_fisioterapia_id: string | null;
+  paciente_id: string;
+  sede_id: string;
+  etapa: EtapaFotoClinica;
+  fecha_toma: string;
+  storage_path: string;
+  nota: string | null;
+  creado_por: string | null;
+  eliminado: boolean;
+  created_at: string;
+  signed_url?: string;
 };
 
 export type HistoriaClinica = {
